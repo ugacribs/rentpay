@@ -20,7 +20,8 @@ export async function GET() {
 
     // Find lease by email (auto-link by email) - use case-insensitive matching
     const userEmailLower = user.email?.toLowerCase() || ''
-    const { data: lease } = await supabase
+    
+    const { data: lease, error: leaseError } = await supabase
       .from('leases')
       .select(`
         *,

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
+    const serviceClient = createServiceClient()
 
     // Get authenticated user
     const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -20,14 +21,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get tenant record
-    const { data: tenant, error: tenantError } = await supabase
+    // Get tenant record using service client (bypasses RLS)
+    const { data: tenant, error: tenantError } = await serviceClient
       .from('tenants')
       .select('id')
-      .eq('email', user.email)
+      .eq('id', user.id)
       .single()
 
     if (tenantError || !tenant) {
+      console.error('Tenant lookup error:', tenantError)
       return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
     }
 
@@ -35,11 +37,11 @@ export async function POST(request: NextRequest) {
     const base64Data = fileData.split(',')[1]
     const buffer = Buffer.from(base64Data, 'base64')
 
-    // Upload to Supabase Storage
+    // Upload to Supabase Storage using service client
     const fileExt = fileName.split('.').pop()
     const filePath = `${tenant.id}/${Date.now()}.${fileExt}`
 
-    const { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await serviceClient.storage
       .from('tenant-documents')
       .upload(filePath, buffer, {
         contentType: fileName.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg',
@@ -55,12 +57,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Get public URL
-    const { data: { publicUrl } } = supabase.storage
+    const { data: { publicUrl } } = serviceClient.storage
       .from('tenant-documents')
       .getPublicUrl(filePath)
 
-    // Save document record
-    const { error: dbError } = await supabase
+    // Save document record using service client
+    const { error: dbError } = await serviceClient
       .from('tenant_id_documents')
       .insert({
         tenant_id: tenant.id,

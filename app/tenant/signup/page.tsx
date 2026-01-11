@@ -51,7 +51,10 @@ function SignupContent() {
     setError('')
     try {
       const supabase = createClient()
-      const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://darkviolet-seahorse-693324.hostingersite.com'
+      // Use current origin for local dev, env var for production
+      const siteUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
+        ? window.location.origin 
+        : (process.env.NEXT_PUBLIC_APP_URL || 'https://darkviolet-seahorse-693324.hostingersite.com')
       const { error: authError } = await supabase.auth.signInWithOtp({
         email,
         options: {

@@ -3,13 +3,13 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
+  const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
   const token_hash = searchParams.get('token_hash')
   const type = searchParams.get('type')
   
-  // Get the base URL for redirects
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://darkviolet-seahorse-693324.hostingersite.com'
+  // Use request origin for redirects (works for both localhost and production)
+  const baseUrl = origin
 
   const cookieStore = await cookies()
   
