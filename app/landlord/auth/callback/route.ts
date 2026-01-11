@@ -3,23 +3,8 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
-  const { searchParams, origin, hash } = new URL(request.url)
+  const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  
-  // Check for 'next' in query params first, then check for type param
-  let next = searchParams.get('next')
-  
-  // If no next param, check if this is a landlord or tenant based on stored redirect
-  // Supabase sometimes strips query params, so we also check the redirect_to in token
-  if (!next) {
-    // Default based on presence of certain params or fallback
-    const type = searchParams.get('type')
-    if (type === 'landlord') {
-      next = '/landlord/dashboard'
-    } else {
-      next = '/tenant/onboarding'
-    }
-  }
 
   if (code) {
     const cookieStore = await cookies()
@@ -44,22 +29,22 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (!error) {
-      // Successful auth - redirect to appropriate dashboard
+      // Landlord callback - always redirect to landlord dashboard
       const forwardedHost = request.headers.get('x-forwarded-host')
       const isLocalEnv = process.env.NODE_ENV === 'development'
       
       if (isLocalEnv) {
-        return NextResponse.redirect(`${origin}${next}`)
+        return NextResponse.redirect(`${origin}/landlord/dashboard`)
       } else if (forwardedHost) {
-        return NextResponse.redirect(`https://${forwardedHost}${next}`)
+        return NextResponse.redirect(`https://${forwardedHost}/landlord/dashboard`)
       } else {
-        return NextResponse.redirect(`${origin}${next}`)
+        return NextResponse.redirect(`${origin}/landlord/dashboard`)
       }
     }
     
-    console.error('Auth callback error:', error)
+    console.error('Landlord auth callback error:', error)
   }
 
-  // Auth failed - redirect to error page
-  return NextResponse.redirect(`${origin}/tenant/signup?error=auth_failed`)
+  // Auth failed - redirect to landlord login
+  return NextResponse.redirect(`${origin}/landlord/login?error=auth_failed`)
 }

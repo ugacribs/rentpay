@@ -37,7 +37,7 @@ function LoginContent() {
       const { error: authError } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${siteUrl}/auth/callback?next=/landlord/dashboard`,
+          emailRedirectTo: `${siteUrl}/landlord/auth/callback`,
         },
       })
       if (authError) {
