@@ -33,10 +33,11 @@ function LoginContent() {
     setError('')
     try {
       const supabase = createClient()
+      const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://darkviolet-seahorse-693324.hostingersite.com'
       const { error: authError } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=/landlord/dashboard`,
+          emailRedirectTo: `${siteUrl}/auth/callback?next=/landlord/dashboard`,
         },
       })
       if (authError) {
