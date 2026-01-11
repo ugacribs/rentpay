@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
+    const serviceClient = createServiceClient()
 
     // Get authenticated user
     const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -18,8 +19,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Lease ID required' }, { status: 400 })
     }
 
-    // Get balance using the database function
-    const { data, error } = await supabase.rpc('get_lease_balance', {
+    // Get balance using the database function with service client
+    const { data, error } = await serviceClient.rpc('get_lease_balance', {
       lease_uuid: leaseId,
     })
 

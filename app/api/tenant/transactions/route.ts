@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
+    const serviceClient = createServiceClient()
 
     // Get authenticated user
     const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -11,22 +12,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get tenant record
-    const { data: tenant, error: tenantError } = await supabase
-      .from('tenants')
-      .select('id')
-      .eq('email', user.email)
-      .single()
-
-    if (tenantError || !tenant) {
-      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
-    }
-
-    // Get lease
-    const { data: lease, error: leaseError } = await supabase
+    // Get tenant's lease using service client (bypasses RLS)
+    const { data: lease, error: leaseError } = await serviceClient
       .from('leases')
       .select('id')
-      .eq('tenant_id', tenant.id)
+      .eq('tenant_id', user.id)
       .single()
 
     if (leaseError || !lease) {
@@ -34,7 +24,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get transactions ordered by date (newest first)
-    const { data: transactions, error: transactionsError } = await supabase
+    const { data: transactions, error: transactionsError } = await serviceClient
       .from('transactions')
       .select('*')
       .eq('lease_id', lease.id)
