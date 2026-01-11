@@ -1,22 +1,30 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { FormField, FormMessage } from '@/components/ui/form'
+import { createClient } from '@/lib/supabase/client'
 
-export default function LandlordLoginPage() {
-  const router = useRouter()
+function LoginContent() {
+  const searchParams = useSearchParams()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [email, setEmail] = useState('')
-  const [otp, setOtp] = useState('')
-  const [otpSent, setOtpSent] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
 
-  const sendOTP = async () => {
+  useEffect(() => {
+    // Surface auth failure errors from callback
+    const urlError = searchParams.get('error')
+    if (urlError === 'auth_failed') {
+      setError('Authentication failed. Please try again.')
+    }
+  }, [searchParams])
+
+  const sendMagicLink = async () => {
     if (!email) {
       setError('Email is required')
       return
@@ -24,42 +32,17 @@ export default function LandlordLoginPage() {
     setLoading(true)
     setError('')
     try {
-      const response = await fetch('/api/auth/send-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+      const supabase = createClient()
+      const { error: authError } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/landlord/dashboard`,
+        },
       })
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to send OTP')
+      if (authError) {
+        throw new Error(authError.message)
       }
-      setOtpSent(true)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const verifyOTP = async () => {
-    if (!otp) {
-      setError('OTP is required')
-      return
-    }
-    setLoading(true)
-    setError('')
-    try {
-      const response = await fetch('/api/auth/verify-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, token: otp }),
-      })
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Invalid OTP')
-      }
-      router.push('/landlord/dashboard')
-      router.refresh()
+      setEmailSent(true)
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -82,54 +65,65 @@ export default function LandlordLoginPage() {
               <p className="text-sm text-red-800">{error}</p>
             </div>
           )}
-          <div className="space-y-4">
-            <FormField>
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="landlord@example.com"
-                disabled={otpSent}
-                required
-              />
-            </FormField>
-            {!otpSent ? (
-              <Button onClick={sendOTP} disabled={loading} className="w-full">
-                {loading ? 'Sending...' : 'Send Login Code'}
+          
+          {emailSent ? (
+            <div className="space-y-4">
+              <div className="p-4 bg-green-50 border border-green-200 rounded-md">
+                <p className="text-sm text-green-800">
+                  <strong>Check your email!</strong> We&apos;ve sent a magic link to <strong>{email}</strong>. 
+                  Click the link in the email to sign in.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEmailSent(false)
+                  setEmail('')
+                }}
+                className="w-full"
+              >
+                Use Different Email
               </Button>
-            ) : (
-              <>
-                <FormField>
-                  <Label htmlFor="otp">Verification Code</Label>
-                  <Input
-                    id="otp"
-                    type="text"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
-                    placeholder="Enter 6-digit code"
-                    maxLength={6}
-                    required
-                  />
-                  <FormMessage>Check your email for the login code</FormMessage>
-                </FormField>
-                <Button onClick={verifyOTP} disabled={loading} className="w-full">
-                  {loading ? 'Verifying...' : 'Sign In'}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setOtpSent(false)}
-                  disabled={loading}
-                  className="w-full"
-                >
-                  Use Different Email
-                </Button>
-              </>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <FormField>
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="landlord@example.com"
+                  onKeyDown={(e) => e.key === 'Enter' && sendMagicLink()}
+                  required
+                />
+                <FormMessage>We&apos;ll send you a magic link to sign in</FormMessage>
+              </FormField>
+              <Button onClick={sendMagicLink} disabled={loading} className="w-full">
+                {loading ? 'Sending...' : 'Send Magic Link'}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function LandlordLoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-50 to-slate-100">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-8 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading...</p>
+          </CardContent>
+        </Card>
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   )
 }
