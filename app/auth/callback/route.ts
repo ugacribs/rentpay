@@ -3,63 +3,62 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
-  const { searchParams, origin, hash } = new URL(request.url)
+  const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
+  const token_hash = searchParams.get('token_hash')
+  const type = searchParams.get('type')
+  const next = searchParams.get('next')
   
-  // Check for 'next' in query params first, then check for type param
-  let next = searchParams.get('next')
+  // Get the base URL for redirects
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://darkviolet-seahorse-693324.hostingersite.com'
   
-  // If no next param, check if this is a landlord or tenant based on stored redirect
-  // Supabase sometimes strips query params, so we also check the redirect_to in token
-  if (!next) {
-    // Default based on presence of certain params or fallback
-    const type = searchParams.get('type')
-    if (type === 'landlord') {
-      next = '/landlord/dashboard'
-    } else {
-      next = '/tenant/onboarding'
-    }
-  }
+  // Determine redirect destination
+  let redirectTo = next || '/tenant/onboarding'
 
-  if (code) {
-    const cookieStore = await cookies()
-    
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll()
-          },
-          setAll(cookiesToSet) {
+  const cookieStore = await cookies()
+  
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          try {
             cookiesToSet.forEach(({ name, value, options }) =>
               cookieStore.set(name, value, options)
             )
-          },
+          } catch (error) {
+            console.error('Error setting cookies:', error)
+          }
         },
-      }
-    )
-    
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
-
-    if (!error) {
-      // Successful auth - redirect to appropriate dashboard
-      const forwardedHost = request.headers.get('x-forwarded-host')
-      const isLocalEnv = process.env.NODE_ENV === 'development'
-      
-      if (isLocalEnv) {
-        return NextResponse.redirect(`${origin}${next}`)
-      } else if (forwardedHost) {
-        return NextResponse.redirect(`https://${forwardedHost}${next}`)
-      } else {
-        return NextResponse.redirect(`${origin}${next}`)
-      }
+      },
     }
-    
-    console.error('Auth callback error:', error)
+  )
+
+  // Handle PKCE flow (code parameter)
+  if (code) {
+    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    if (!error) {
+      return NextResponse.redirect(`${baseUrl}${redirectTo}`)
+    }
+    console.error('Auth callback error (code):', error)
+  }
+  
+  // Handle magic link flow (token_hash parameter)
+  if (token_hash && type) {
+    const { error } = await supabase.auth.verifyOtp({
+      token_hash,
+      type: type as 'email' | 'signup' | 'magiclink',
+    })
+    if (!error) {
+      return NextResponse.redirect(`${baseUrl}${redirectTo}`)
+    }
+    console.error('Auth callback error (token_hash):', error)
   }
 
   // Auth failed - redirect to error page
-  return NextResponse.redirect(`${origin}/tenant/signup?error=auth_failed`)
+  return NextResponse.redirect(`${baseUrl}/tenant/signup?error=auth_failed`)
 }
