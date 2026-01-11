@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { FormField, FormMessage } from '@/components/ui/form'
+import { createClient } from '@/lib/supabase/client'
 
 function SignupContent() {
   const router = useRouter()
@@ -14,8 +15,7 @@ function SignupContent() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [email, setEmail] = useState('')
-  const [otpSent, setOtpSent] = useState(false)
-  const [otp, setOtp] = useState('')
+  const [emailSent, setEmailSent] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
@@ -42,7 +42,7 @@ function SignupContent() {
     setLoading(false)
   }
 
-  const sendOTP = async () => {
+  const sendMagicLink = async () => {
     if (!email) {
       setError('Email is required')
       return
@@ -50,42 +50,18 @@ function SignupContent() {
     setSubmitting(true)
     setError('')
     try {
-      const response = await fetch('/api/auth/send-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+      const supabase = createClient()
+      const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://darkviolet-seahorse-693324.hostingersite.com'
+      const { error: authError } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: `${siteUrl}/tenant/auth/callback`,
+        },
       })
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to send verification code')
+      if (authError) {
+        throw new Error(authError.message)
       }
-      setOtpSent(true)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const verifyOTP = async () => {
-    if (!otp) {
-      setError('Verification code is required')
-      return
-    }
-    setSubmitting(true)
-    setError('')
-    try {
-      const response = await fetch('/api/auth/verify-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, token: otp }),
-      })
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Invalid verification code')
-      }
-      // Authenticated; continue onboarding
-      router.push('/tenant/onboarding')
+      setEmailSent(true)
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -112,9 +88,7 @@ function SignupContent() {
         <CardHeader>
           <CardTitle>Welcome to RentPay</CardTitle>
           <CardDescription>
-            {otpSent
-              ? 'Enter the verification code sent to your email'
-              : 'Enter your email to get started'}
+            Enter your email to get started
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -131,7 +105,27 @@ function SignupContent() {
             </p>
           </div>
 
-          {!otpSent ? (
+          {emailSent ? (
+            <div className="space-y-4">
+              <div className="p-4 bg-green-50 border border-green-200 rounded-md">
+                <p className="text-sm text-green-800">
+                  <strong>Check your email!</strong> We&apos;ve sent a magic link to <strong>{email}</strong>. 
+                  Click the link in the email to sign in.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEmailSent(false)
+                  setEmail('')
+                  setError('')
+                }}
+                className="w-full"
+              >
+                Use Different Email
+              </Button>
+            </div>
+          ) : (
             <div className="space-y-4">
               <FormField>
                 <Label htmlFor="email">Email Address</Label>
@@ -141,43 +135,13 @@ function SignupContent() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="your@email.com"
+                  onKeyDown={(e) => e.key === 'Enter' && sendMagicLink()}
                   required
                 />
                 <FormMessage>Use the same email your landlord used to create your lease</FormMessage>
               </FormField>
-              <Button onClick={sendOTP} disabled={submitting} className="w-full">
-                {submitting ? 'Sending...' : 'Send Verification Code'}
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <FormField>
-                <Label htmlFor="otp">Verification Code</Label>
-                <Input
-                  id="otp"
-                  type="text"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  placeholder="Enter 6-digit code"
-                  maxLength={6}
-                  required
-                />
-                <FormMessage>Check your email for the verification code</FormMessage>
-              </FormField>
-              <Button onClick={verifyOTP} disabled={submitting} className="w-full">
-                {submitting ? 'Verifying...' : 'Verify & Continue'}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setOtpSent(false)
-                  setOtp('')
-                  setError('')
-                }}
-                disabled={submitting}
-                className="w-full"
-              >
-                Use Different Email
+              <Button onClick={sendMagicLink} disabled={submitting} className="w-full">
+                {submitting ? 'Sending...' : 'Send Magic Link'}
               </Button>
             </div>
           )}
