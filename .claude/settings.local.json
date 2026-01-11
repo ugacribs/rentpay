@@ -36,7 +36,9 @@
       "Bash(supabase functions deploy:*)",
       "Bash(timeout:*)",
       "Bash(git init:*)",
-      "Bash(gh auth status:*)"
+      "Bash(gh auth status:*)",
+      "Bash(\"C:/Program Files/GitHub CLI/gh.exe\" auth status)",
+      "Bash(\"C:/Program Files/GitHub CLI/gh.exe\" repo create rentpay --private --source=. --remote=origin --push)"
     ]
   }
 }
