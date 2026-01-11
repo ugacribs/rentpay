@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { formatCurrency } from '@/lib/utils'
-import { createBrowserClient } from '@supabase/ssr'
 
 export default function TenantDashboard() {
   const router = useRouter()
@@ -19,11 +18,19 @@ export default function TenantDashboard() {
   const [lease, setLease] = useState<any>(null)
   const [transactions, setTransactions] = useState<any[]>([])
   const [showPayment, setShowPayment] = useState(false)
+  const [tenantName, setTenantName] = useState('')
 
   // Payment form
   const [amount, setAmount] = useState('')
   const [phoneNumber, setPhoneNumber] = useState('')
   const [gateway, setGateway] = useState<'mtn' | 'airtel'>('mtn')
+
+  const getGreeting = () => {
+    const hour = new Date().getHours()
+    if (hour < 12) return 'Good morning'
+    if (hour < 17) return 'Good afternoon'
+    return 'Good evening'
+  }
 
   useEffect(() => {
     fetchDashboardData()
@@ -31,15 +38,22 @@ export default function TenantDashboard() {
 
   const fetchDashboardData = async () => {
     try {
-      const [leaseRes, transactionsRes] = await Promise.all([
+      const [leaseRes, transactionsRes, profileRes] = await Promise.all([
         fetch('/api/tenant/lease'),
         fetch('/api/tenant/transactions'),
+        fetch('/api/tenant/profile'),
       ])
 
       if (!leaseRes.ok) throw new Error('Failed to fetch lease data')
 
       const leaseData = await leaseRes.json()
       setLease(leaseData)
+
+      // Get tenant name from profile
+      if (profileRes.ok) {
+        const profileData = await profileRes.json()
+        setTenantName(profileData.first_name || '')
+      }
 
       // Calculate balance
       const balanceRes = await fetch(`/api/tenant/balance?leaseId=${leaseData.id}`)
@@ -57,16 +71,6 @@ export default function TenantDashboard() {
     } finally {
       setLoading(false)
     }
-  }
-
-  const handleLogout = async () => {
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
-    await supabase.auth.signOut()
-    router.push('/')
-    router.refresh()
   }
 
   const handlePayment = async (e: React.FormEvent) => {
@@ -118,13 +122,6 @@ export default function TenantDashboard() {
     }
   }
 
-  const getDayOrdinal = (day: number) => {
-    if (day === 1 || day === 21 || day === 31) return 'st'
-    if (day === 2 || day === 22) return 'nd'
-    if (day === 3 || day === 23) return 'rd'
-    return 'th'
-  }
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-blue-600 to-blue-800 p-4">
@@ -143,19 +140,18 @@ export default function TenantDashboard() {
       <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-4 pb-24">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <p className="text-blue-100 text-sm">Welcome back</p>
+            <p className="text-blue-100 text-sm">{getGreeting()}{tenantName ? `, ${tenantName}` : ''} 👋</p>
             <h1 className="text-xl font-bold">{lease?.unit?.property?.name || 'Your Home'}</h1>
           </div>
           <Button 
             variant="ghost" 
             size="sm" 
-            onClick={handleLogout}
-            className="text-white hover:bg-white/20"
+            onClick={() => router.push('/tenant/profile')}
+            className="text-white hover:bg-white/20 p-2"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
             </svg>
-            Logout
           </Button>
         </div>
 
@@ -258,104 +254,77 @@ export default function TenantDashboard() {
           </Card>
         )}
 
-        {/* Quick Info Cards */}
-        <div className="grid grid-cols-2 gap-3">
-          <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-gray-500 text-xs">Monthly Rent</p>
-              <p className="text-xl font-bold text-gray-900">
-                {formatCurrency(lease?.monthly_rent || 0)}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-gray-500 text-xs">Due Date</p>
-              <p className="text-xl font-bold text-gray-900">
-                {lease?.rent_due_date || '-'}
-                <span className="text-sm text-gray-500">
-                  {lease?.rent_due_date ? getDayOrdinal(lease.rent_due_date) : ''}
-                </span>
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Unit Info */}
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-3">
-              <div className="bg-blue-100 p-3 rounded-full">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                </svg>
-              </div>
-              <div>
-                <p className="font-semibold">{lease?.unit?.property?.name || 'Property'}</p>
-                <p className="text-gray-500 text-sm">Unit {lease?.unit?.unit_number || 'N/A'}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Transaction History */}
+        {/* Account Ledger */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Recent Transactions</CardTitle>
+            <CardTitle className="text-lg">Account Ledger</CardTitle>
+            <CardDescription>Complete transaction history</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             {transactions.length === 0 ? (
               <p className="text-gray-500 text-center py-6 text-sm">No transactions yet</p>
             ) : (
-              <div className="divide-y">
-                {transactions.map((transaction) => (
-                  <div
-                    key={transaction.id}
-                    className="flex justify-between items-center p-4"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className={`p-2 rounded-full ${
-                        transaction.transaction_type === 'payment' 
-                          ? 'bg-green-100' 
-                          : 'bg-red-100'
+              <div className="overflow-x-auto">
+                {/* Ledger Table Header */}
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b">
+                    <tr>
+                      <th className="text-left p-3 font-medium text-gray-600">Date</th>
+                      <th className="text-left p-3 font-medium text-gray-600">Description</th>
+                      <th className="text-right p-3 font-medium text-gray-600">Debit</th>
+                      <th className="text-right p-3 font-medium text-gray-600">Credit</th>
+                      <th className="text-right p-3 font-medium text-gray-600">Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {/* Show transactions with latest first */}
+                    {transactions.map((transaction) => {
+                      const txType = transaction.transaction_type || 'charge'
+                      const isPayment = txType === 'payment'
+                      const isCredit = isPayment
+                      const amount = Math.abs(transaction.amount)
+                      
+                      return (
+                        <tr key={transaction.id} className="hover:bg-gray-50">
+                          <td className="p-3 text-gray-600 whitespace-nowrap">
+                            {new Date(transaction.created_at).toLocaleDateString('en-UG', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                            })}
+                          </td>
+                          <td className="p-3 capitalize">
+                            {txType.replace(/_/g, ' ')}
+                            {transaction.description && (
+                              <span className="text-gray-500 text-xs block">{transaction.description}</span>
+                            )}
+                          </td>
+                          <td className="p-3 text-right text-red-600 font-medium">
+                            {!isCredit ? formatCurrency(amount) : '-'}
+                          </td>
+                          <td className="p-3 text-right text-green-600 font-medium">
+                            {isCredit ? formatCurrency(amount) : '-'}
+                          </td>
+                          <td className={`p-3 text-right font-semibold ${
+                            transaction.balance_after > 0 ? 'text-red-600' : 'text-green-600'
+                          }`}>
+                            {formatCurrency(transaction.balance_after)}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                  <tfoot className="bg-gray-100 border-t-2">
+                    <tr>
+                      <td colSpan={4} className="p-3 font-semibold text-right">Current Balance:</td>
+                      <td className={`p-3 text-right font-bold ${
+                        balance > 0 ? 'text-red-600' : 'text-green-600'
                       }`}>
-                        {transaction.transaction_type === 'payment' ? (
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                        ) : (
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                          </svg>
-                        )}
-                      </div>
-                      <div>
-                        <p className="font-medium text-sm capitalize">
-                          {transaction.transaction_type.replace(/_/g, ' ')}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {new Date(transaction.created_at).toLocaleDateString('en-UG', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                          })}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className={`font-semibold text-sm ${
-                        transaction.transaction_type === 'payment' ? 'text-green-600' : 'text-red-600'
-                      }`}>
-                        {transaction.transaction_type === 'payment' ? '-' : '+'}
-                        {formatCurrency(Math.abs(transaction.amount))}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        Bal: {formatCurrency(transaction.balance_after)}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                        {formatCurrency(balance)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
             )}
           </CardContent>

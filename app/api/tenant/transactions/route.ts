@@ -23,13 +23,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Lease not found' }, { status: 404 })
     }
 
-    // Get transactions ordered by date (newest first)
+    // Get all transactions ordered by date (newest first for display, will reverse for ledger)
     const { data: transactions, error: transactionsError } = await serviceClient
       .from('transactions')
       .select('*')
       .eq('lease_id', lease.id)
       .order('created_at', { ascending: false })
-      .limit(50)
 
     if (transactionsError) {
       console.error('Transactions error:', transactionsError)
