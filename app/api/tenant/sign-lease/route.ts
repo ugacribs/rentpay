@@ -115,20 +115,20 @@ export async function POST(request: NextRequest) {
       // Business logic: Prorated rent covers from signup date to the day BEFORE the first rent due date
       const rentDueDate = lease.rent_due_date || 1
       let firstDueDate: Date
-      
+
       // If signup day >= due date, first due date is in next month
       if (signupDate.getDate() >= rentDueDate) {
         firstDueDate = new Date(signupDate.getFullYear(), signupDate.getMonth() + 1, rentDueDate)
       } else {
         firstDueDate = new Date(signupDate.getFullYear(), signupDate.getMonth(), rentDueDate)
       }
-      
+
       // Day before due date is the last day of prorated period
       const dayBeforeDueDate = new Date(firstDueDate)
       dayBeforeDueDate.setDate(dayBeforeDueDate.getDate() - 1)
-      
+
       const formatDate = (d: Date) => d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
-      
+
       // Create prorated rent transaction with detailed description
       await supabase
         .from('transactions')
@@ -140,11 +140,18 @@ export async function POST(request: NextRequest) {
           transaction_date: signupDate.toISOString().split('T')[0],
         })
 
-      // Mark prorated rent as charged
+      // Mark prorated rent as charged and set the first billing date
+      // The first_billing_date is when monthly rent charges should START (skips first cycle)
       await supabase
         .from('leases')
         .update({ prorated_rent_charged: true })
         .eq('id', lease.id)
+
+      // Set the first billing date (this tells the daily billing to skip the first cycle)
+      await supabase.rpc('set_first_billing_date', {
+        p_lease_id: lease.id,
+        p_signup_date: signupDate.toISOString().split('T')[0],
+      })
     }
 
     return NextResponse.json({

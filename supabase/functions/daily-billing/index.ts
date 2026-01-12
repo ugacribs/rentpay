@@ -1,6 +1,11 @@
 // Daily Billing Edge Function
 // This runs every day at 00:01 to charge rent for tenants whose due date is tomorrow
 // Schedule: 0 1 * * * (runs at 00:01 UTC every day)
+//
+// IMPORTANT: Monthly rent is charged on the day BEFORE the due date.
+// For new tenants with prorated rent, the first monthly rent charge is skipped
+// (prorated rent already covers that period). The first_billing_date column
+// tracks when monthly billing should start.
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -24,29 +29,36 @@ serve(async (req) => {
 
     // Get current date info
     const now = new Date()
+    const today = now.toISOString().split('T')[0] // YYYY-MM-DD format
     const tomorrow = new Date(now)
     tomorrow.setDate(tomorrow.getDate() + 1)
     const tomorrowDay = tomorrow.getDate()
 
     console.log(`Running daily billing for leases with due date: ${tomorrowDay}`)
+    console.log(`Today's date: ${today}`)
 
-    // Find all active leases where rent_due_date matches tomorrow's day
+    // Find all active leases where:
+    // 1. rent_due_date matches tomorrow's day
+    // 2. prorated_rent_charged is true (tenant has completed signup)
+    // 3. first_billing_date is null OR today >= first_billing_date
     const { data: leases, error: leasesError } = await supabase
       .from('leases')
-      .select('id, monthly_rent, tenant_id, rent_due_date')
+      .select('id, monthly_rent, tenant_id, rent_due_date, first_billing_date')
       .eq('status', 'active')
       .eq('rent_due_date', tomorrowDay)
+      .eq('prorated_rent_charged', true)
 
     if (leasesError) {
       console.error('Error fetching leases:', leasesError)
       throw leasesError
     }
 
-    console.log(`Found ${leases?.length || 0} leases to bill`)
+    console.log(`Found ${leases?.length || 0} leases to check for billing`)
 
     const results = {
       total: leases?.length || 0,
       successful: 0,
+      skipped: 0,
       failed: 0,
       errors: [] as string[],
     }
@@ -54,6 +66,20 @@ serve(async (req) => {
     // Charge rent for each lease
     for (const lease of leases || []) {
       try {
+        console.log(`Checking lease ${lease.id} for billing`)
+
+        // Check if we should skip this billing cycle (first_billing_date hasn't arrived yet)
+        if (lease.first_billing_date) {
+          const firstBillingDate = new Date(lease.first_billing_date)
+          const todayDate = new Date(today)
+
+          if (todayDate < firstBillingDate) {
+            console.log(`Skipping lease ${lease.id} - first billing date is ${lease.first_billing_date}, today is ${today}`)
+            results.skipped++
+            continue
+          }
+        }
+
         console.log(`Charging rent for lease ${lease.id}`)
 
         // Call the database function to charge rent
@@ -68,9 +94,6 @@ serve(async (req) => {
         } else {
           console.log(`Successfully charged lease ${lease.id}`)
           results.successful++
-
-          // TODO: Send rent due notification to tenant
-          // This will be implemented when email service is integrated
         }
       } catch (error: any) {
         console.error(`Exception charging lease ${lease.id}:`, error)
