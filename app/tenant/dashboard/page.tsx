@@ -125,6 +125,23 @@ export default function TenantDashboard() {
       return
     }
 
+    const normalizePhone = (input: string) => {
+      const digits = input.replace(/\D/g, '')
+      if (digits.startsWith('0') && digits.length === 10) {
+        return `256${digits.slice(1)}`
+      }
+      if (digits.startsWith('256') && digits.length === 12) {
+        return digits
+      }
+      return null
+    }
+
+    const normalizedPhone = normalizePhone(phoneNumber)
+    if (!normalizedPhone) {
+      setError('Enter phone as 07XXXXXXXX (we will format it)')
+      return
+    }
+
     setPaymentLoading(true)
     setError('')
 
@@ -134,7 +151,7 @@ export default function TenantDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           amount: parseFloat(amount),
-          phone_number: phoneNumber,
+          phone_number: normalizedPhone,
           gateway,
         }),
       })
@@ -203,6 +220,18 @@ export default function TenantDashboard() {
     }
     
     return transaction.description || txType.replace(/_/g, ' ')
+  }
+
+  const formatDateTime = (value: string | Date) => {
+    const d = value instanceof Date ? value : new Date(value)
+    return d.toLocaleString('en-UG', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    })
   }
 
   return (
@@ -327,14 +356,13 @@ export default function TenantDashboard() {
                     type="tel"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
-                    placeholder="256XXXXXXXXX"
+                    placeholder="07XXXXXXXX"
                     className="mt-1"
                   />
-                  <p className="text-xs text-gray-500 mt-1">Format: 256XXXXXXXXX</p>
                 </div>
 
                 <Button type="submit" disabled={paymentLoading} className="w-full">
-                  {paymentLoading ? 'Processing...' : 'Initiate Payment'}
+                  {paymentLoading ? 'Processing...' : 'Pay'}
                 </Button>
               </form>
             </div>
@@ -384,11 +412,7 @@ export default function TenantDashboard() {
                       return (
                         <tr key={transaction.id} className="hover:bg-gray-50">
                           <td className="p-3 text-gray-600 whitespace-nowrap">
-                            {new Date(transaction.created_at).toLocaleDateString('en-UG', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric',
-                            })}
+                            {formatDateTime(transaction.created_at)}
                           </td>
                           <td className="p-3">
                             {formatDescription(transaction)}

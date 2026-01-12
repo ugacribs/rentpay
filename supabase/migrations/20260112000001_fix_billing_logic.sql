@@ -120,9 +120,9 @@ BEGIN
         v_first_due_date := (DATE_TRUNC('month', p_signup_date) + (v_due_date - 1 || ' days')::INTERVAL)::DATE;
     END IF;
 
-    -- First billing date is one month after the first due date
-    -- (billing happens day before due date, so we add 1 month to first_due_date then subtract 1 day)
-    v_first_billing_date := (v_first_due_date + INTERVAL '1 month' - INTERVAL '1 day')::DATE;
+    -- First billing should occur on the day BEFORE the first due date
+    -- (prorated rent covers from signup through the day before the first due date)
+    v_first_billing_date := (v_first_due_date - INTERVAL '1 day')::DATE;
 
     -- Update the lease with the first billing date
     UPDATE leases

@@ -102,8 +102,10 @@ RETURNS VOID AS $$
 DECLARE
     v_monthly_rent DECIMAL(12, 2);
     v_billing_date DATE;
+    v_period_start DATE;
+    v_period_end DATE;
 BEGIN
-    -- Get monthly rent
+    -- Get monthly rent and ensure lease is active
     SELECT monthly_rent INTO v_monthly_rent
     FROM leases
     WHERE id = p_lease_id AND status = 'active';
@@ -112,16 +114,20 @@ BEGIN
         RETURN;
     END IF;
 
-    -- Current date is the billing date
+    -- Current date is the billing date (called by daily billing on the day before due date)
     v_billing_date := CURRENT_DATE;
 
-    -- Insert rent charge transaction
+    -- Billing covers the upcoming period starting tomorrow through the day before the next due date
+    v_period_start := v_billing_date + INTERVAL '1 day';
+    v_period_end   := (v_period_start + INTERVAL '1 month') - INTERVAL '1 day';
+
+    -- Insert rent charge transaction with explicit period description
     INSERT INTO transactions (lease_id, type, amount, description, transaction_date)
     VALUES (
         p_lease_id,
         'rent',
         v_monthly_rent,
-        'Monthly rent charge',
+        'Monthly rent for period ' || to_char(v_period_start, 'DD/MM/YYYY') || ' to ' || to_char(v_period_end, 'DD/MM/YYYY'),
         v_billing_date
     );
 END;

@@ -82,10 +82,25 @@ serve(async (req) => {
 
         console.log(`Charging rent for lease ${lease.id}`)
 
-        // Call the database function to charge rent
-        const { error: chargeError } = await supabase.rpc('charge_rent', {
-          p_lease_id: lease.id,
-        })
+        // Compute billing period: tomorrow through the day before next month's same date
+        const billingDate = new Date(today)
+        const periodStart = new Date(billingDate)
+        periodStart.setDate(periodStart.getDate() + 1)
+        const periodEnd = new Date(periodStart)
+        periodEnd.setMonth(periodEnd.getMonth() + 1)
+        periodEnd.setDate(periodEnd.getDate() - 1)
+
+        const formatDate = (d: Date) => d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
+
+        const { error: chargeError } = await supabase
+          .from('transactions')
+          .insert({
+            lease_id: lease.id,
+            type: 'rent',
+            amount: lease.monthly_rent,
+            description: `Monthly rent for period ${formatDate(periodStart)} to ${formatDate(periodEnd)}`,
+            transaction_date: today,
+          })
 
         if (chargeError) {
           console.error(`Error charging lease ${lease.id}:`, chargeError)

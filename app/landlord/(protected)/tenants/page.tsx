@@ -119,6 +119,18 @@ export default function TenantsPage() {
     })
   }
 
+  const formatDateTime = (dateString: string) => {
+    if (!dateString) return 'N/A'
+    return new Date(dateString).toLocaleString('en-UG', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    })
+  }
+
   // Calculate running balance for ledger
   const calculateLedgerWithBalance = () => {
     if (!ledgerData) return []
@@ -275,7 +287,7 @@ export default function TenantsPage() {
                                 <div key={tx.id} className="px-3 py-2 border-b last:border-0 flex justify-between items-center text-sm">
                                   <div>
                                     <p className="font-medium">{tx.description}</p>
-                                    <p className="text-xs text-gray-500">{formatDate(tx.created_at)}</p>
+                                    <p className="text-xs text-gray-500">{formatDateTime(tx.created_at)}</p>
                                   </div>
                                   <div className="text-right">
                                     <p className={tx.type === 'payment' ? 'text-green-600' : 'text-red-600'}>

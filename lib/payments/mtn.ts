@@ -121,6 +121,12 @@ export async function requestToPayMTN(
   payeeNote: string = 'Rent Payment'
 ): Promise<MTNCollectionResponse> {
   try {
+    // SIMULATION MODE: short-circuit with success (remove this block to restore real MTN calls)
+    return {
+      success: true,
+      referenceId: `SIM-MTN-${externalId}`,
+    }
+
     // Get access token
     const accessToken = await getAccessToken()
     if (!accessToken) {

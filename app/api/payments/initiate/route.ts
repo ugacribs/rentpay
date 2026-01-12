@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
 import { getUser } from '@/lib/auth/auth-helpers'
 import { requestToPayMTN, validateMTNPhoneNumber, formatMTNPhoneNumber } from '@/lib/payments/mtn'
 import { requestToPayAirtel, validateAirtelPhoneNumber, formatAirtelPhoneNumber } from '@/lib/payments/airtel'
@@ -36,17 +36,60 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = await createClient()
+    // Normalize phone input: accept 07XXXXXXXX and convert to 256XXXXXXXXX, or accept already-256 format
+    const normalizePhone = (input: string) => {
+      const digits = (input || '').replace(/\D/g, '')
+      if (digits.startsWith('0') && digits.length === 10) return `256${digits.slice(1)}`
+      if (digits.startsWith('256') && digits.length === 12) return digits
+      return null
+    }
 
-    // Get tenant's active lease
-    const { data: lease, error: leaseError } = await supabase
+    const normalizedPhone = normalizePhone(phone_number)
+    if (!normalizedPhone) {
+      return NextResponse.json(
+        { error: 'Enter phone as 07XXXXXXXX; we will format it automatically.' },
+        { status: 400 }
+      )
+    }
+
+    const supabase = createServiceClient()
+
+    // Get tenant's active lease (by tenant_id, or fall back to email and link the lease)
+    let lease = null
+
+    const { data: leaseById, error: leaseByIdError } = await supabase
       .from('leases')
       .select('*')
       .eq('tenant_id', user.id)
       .eq('status', 'active')
       .single()
 
-    if (leaseError || !lease) {
+    if (leaseById) {
+      lease = leaseById
+    }
+
+    if (!lease) {
+      const userEmail = (user.email || '').toLowerCase()
+      const { data: leaseByEmail } = await supabase
+        .from('leases')
+        .select('*')
+        .ilike('tenant_email', userEmail)
+        .eq('status', 'active')
+        .single()
+
+      if (leaseByEmail) {
+        lease = leaseByEmail
+        // Link tenant to lease if not already linked
+        if (!leaseByEmail.tenant_id) {
+          await supabase
+            .from('leases')
+            .update({ tenant_id: user.id })
+            .eq('id', leaseByEmail.id)
+        }
+      }
+    }
+
+    if (!lease) {
       return NextResponse.json(
         { error: 'No active lease found' },
         { status: 400 }
@@ -58,22 +101,22 @@ export async function POST(request: NextRequest) {
     let formattedPhone = ''
 
     if (gateway === 'mtn') {
-      formattedPhone = formatMTNPhoneNumber(phone_number)
+      formattedPhone = formatMTNPhoneNumber(normalizedPhone)
       isValidPhone = validateMTNPhoneNumber(formattedPhone)
 
       if (!isValidPhone) {
         return NextResponse.json(
-          { error: 'Invalid MTN phone number. Must be in format: 0771234567 or 256771234567' },
+          { error: 'Invalid MTN phone number. Enter as 07XXXXXXXX; we convert to 256XXXXXXXXX.' },
           { status: 400 }
         )
       }
     } else if (gateway === 'airtel') {
-      formattedPhone = formatAirtelPhoneNumber(phone_number)
+      formattedPhone = formatAirtelPhoneNumber(normalizedPhone)
       isValidPhone = validateAirtelPhoneNumber(formattedPhone)
 
       if (!isValidPhone) {
         return NextResponse.json(
-          { error: 'Invalid Airtel phone number. Must be in format: 0701234567 or 256701234567' },
+          { error: 'Invalid Airtel phone number. Enter as 07XXXXXXXX; we convert to 256XXXXXXXXX.' },
           { status: 400 }
         )
       }
