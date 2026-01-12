@@ -2,6 +2,12 @@
 // This runs every day at 00:01 to charge late fees for overdue rent
 // Late fees are charged on the 6th day after due date (5 days late)
 // Schedule: 0 1 * * * (runs at 00:01 UTC every day)
+//
+// IMPORTANT: Late fees are calculated proportionally based on outstanding balance:
+// Formula: (outstanding_balance / monthly_rent) × late_fee_amount
+// - If balance < monthly_rent: late fee is reduced proportionally
+// - If balance = monthly_rent: late fee is the full amount
+// - If balance > monthly_rent: late fee is increased proportionally
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -25,19 +31,18 @@ serve(async (req) => {
 
     // Get current date
     const now = new Date()
-    const currentDay = now.getDate()
 
-    // Calculate what the due date was 6 days ago
-    const sixDaysAgo = new Date(now)
-    sixDaysAgo.setDate(sixDaysAgo.getDate() - 5) // 5 days late = 6th day
-    const targetDueDate = sixDaysAgo.getDate()
+    // Calculate what the due date was 5 days ago (6th day = 5 days late)
+    const fiveDaysAgo = new Date(now)
+    fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5)
+    const targetDueDate = fiveDaysAgo.getDate()
 
-    console.log(`Running late fees for leases with due date: ${targetDueDate} (6 days ago)`)
+    console.log(`Running late fees for leases with due date: ${targetDueDate} (5 days ago)`)
 
-    // Find all active leases where rent_due_date was 6 days ago
+    // Find all active leases where rent_due_date was 5 days ago
     const { data: leases, error: leasesError } = await supabase
       .from('leases')
-      .select('id, late_fee_amount, tenant_id, rent_due_date')
+      .select('id, late_fee_amount, monthly_rent, tenant_id, rent_due_date')
       .eq('status', 'active')
       .eq('rent_due_date', targetDueDate)
 
@@ -53,6 +58,7 @@ serve(async (req) => {
       successful: 0,
       skipped: 0,
       failed: 0,
+      details: [] as { leaseId: string; lateFee: number; balance: number }[],
       errors: [] as string[],
     }
 
@@ -75,10 +81,11 @@ serve(async (req) => {
 
         // Only charge late fee if there's an outstanding balance
         if (balance && balance > 0) {
-          console.log(`Lease ${lease.id} has balance ${balance}, charging late fee`)
+          console.log(`Lease ${lease.id} has balance ${balance}, charging proportional late fee`)
 
-          // Call the database function to charge late fee
-          const { error: lateFeeError } = await supabase.rpc('charge_late_fee', {
+          // Call the database function to charge proportional late fee
+          // The function now returns the actual late fee amount charged
+          const { data: lateFeeCharged, error: lateFeeError } = await supabase.rpc('charge_late_fee', {
             p_lease_id: lease.id,
           })
 
@@ -87,11 +94,13 @@ serve(async (req) => {
             results.failed++
             results.errors.push(`Lease ${lease.id}: ${lateFeeError.message}`)
           } else {
-            console.log(`Successfully charged late fee for lease ${lease.id}`)
+            console.log(`Successfully charged late fee of ${lateFeeCharged} for lease ${lease.id}`)
             results.successful++
-
-            // TODO: Send late fee notification to tenant
-            // This will be implemented when email service is integrated
+            results.details.push({
+              leaseId: lease.id,
+              lateFee: lateFeeCharged || 0,
+              balance: balance,
+            })
           }
         } else {
           console.log(`Lease ${lease.id} has no outstanding balance, skipping late fee`)

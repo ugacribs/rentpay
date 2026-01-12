@@ -142,6 +142,7 @@ export default function SignLeasePage() {
                   <li>• Rent is due on the {leaseData.rent_due_date}{leaseData.rent_due_date === 1 ? 'st' : leaseData.rent_due_date === 2 ? 'nd' : leaseData.rent_due_date === 3 ? 'rd' : 'th'} of each month</li>
                   <li>• Automatic charges occur at 00:01 the day before due date</li>
                   <li>• Late fees apply if unpaid 5 days after due date</li>
+                  <li>• Late fees are proportional to your outstanding balance (e.g., if you owe half the monthly rent, you pay half the late fee; if you owe double, you pay double)</li>
                   <li>• Month-to-month lease agreement</li>
                   <li>• Upon signing, prorated rent will be charged immediately</li>
                 </ul>
