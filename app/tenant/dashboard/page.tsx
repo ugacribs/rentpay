@@ -64,7 +64,46 @@ export default function TenantDashboard() {
 
       if (transactionsRes.ok) {
         const transactionsData = await transactionsRes.json()
-        setTransactions(transactionsData)
+        // Transactions come newest-first, calculate running balances
+        // First reverse to oldest-first for calculation
+        const oldestFirst = [...transactionsData].reverse()
+        
+        // Start with opening balance from lease
+        const openingBalance = leaseData.opening_balance || 0
+        let runningBalance = openingBalance
+        
+        // Create opening balance entry if there is one
+        const allEntries: any[] = []
+        if (openingBalance > 0) {
+          // Use signed_at (when tenant signed) or updated_at (when lease was last modified)
+          // as this better reflects when the tenant's account was opened
+          const openingBalanceDate = leaseData.signed_at || leaseData.updated_at || leaseData.created_at
+          allEntries.push({
+            id: 'opening-balance',
+            created_at: openingBalanceDate,
+            transaction_type: 'opening_balance',
+            description: 'Opening balance brought forward',
+            amount: openingBalance,
+            calculated_balance: openingBalance
+          })
+        }
+        
+        // Calculate running balances for actual transactions
+        const withBalances = oldestFirst.map((tx: any) => {
+          const txType = tx.transaction_type || 'charge'
+          const amount = Math.abs(tx.amount || 0)
+          // Charges/fees add to balance (what tenant owes)
+          // Payments reduce balance
+          if (txType === 'payment') {
+            runningBalance -= amount
+          } else {
+            runningBalance += amount
+          }
+          return { ...tx, calculated_balance: runningBalance }
+        })
+        
+        // Combine and reverse back to newest-first for display
+        setTransactions([...allEntries, ...withBalances].reverse())
       }
     } catch (err: any) {
       setError(err.message)
@@ -134,14 +173,45 @@ export default function TenantDashboard() {
     )
   }
 
+  // Helper to format description with dates
+  const formatDescription = (transaction: any) => {
+    const txType = transaction.transaction_type || 'charge'
+    const txDate = new Date(transaction.created_at)
+    
+    // Format date as DD/MM/YYYY
+    const formatDate = (date: Date) => {
+      return date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    }
+    
+    // Get end of month for the transaction date
+    const endOfMonth = new Date(txDate.getFullYear(), txDate.getMonth() + 1, 0)
+    
+    // Get start of next month for rent charges
+    const startOfNextMonth = new Date(txDate.getFullYear(), txDate.getMonth() + 1, 1)
+    const endOfNextMonth = new Date(txDate.getFullYear(), txDate.getMonth() + 2, 0)
+    
+    if (txType === 'prorated_rent') {
+      return `Prorated rent for period ${formatDate(txDate)} to ${formatDate(endOfMonth)}`
+    } else if (txType === 'rent') {
+      return `Monthly rent for ${startOfNextMonth.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })} (${formatDate(startOfNextMonth)} to ${formatDate(endOfNextMonth)})`
+    } else if (txType === 'late_fee') {
+      return `Late payment fee`
+    } else if (txType === 'payment') {
+      return transaction.description || 'Payment received'
+    } else if (txType === 'opening_balance') {
+      return 'Opening balance brought forward'
+    }
+    
+    return transaction.description || txType.replace(/_/g, ' ')
+  }
+
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Header with gradient */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-4 pb-24">
-        <div className="flex justify-between items-center mb-6">
+      <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-4 pb-8">
+        <div className="flex justify-between items-center">
           <div>
-            <p className="text-blue-100 text-sm">{getGreeting()}{tenantName ? `, ${tenantName}` : ''} 👋</p>
-            <h1 className="text-xl font-bold">{lease?.unit?.property?.name || 'Your Home'}</h1>
+            <h1 className="text-xl font-bold">{getGreeting()}{tenantName ? `, ${tenantName}` : ''} 👋</h1>
           </div>
           <Button 
             variant="ghost" 
@@ -154,48 +224,65 @@ export default function TenantDashboard() {
             </svg>
           </Button>
         </div>
+      </div>
 
-        {/* Balance Card - overlapping */}
-        <Card className="bg-white text-gray-900 shadow-xl -mb-20">
-          <CardContent className="p-6">
-            <div className="text-center">
-              <p className="text-gray-500 text-sm mb-1">Current Balance</p>
-              <p className={`text-4xl font-bold ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                {formatCurrency(balance)}
-              </p>
-              <p className="text-gray-500 text-xs mt-1">
-                {balance > 0 ? 'Amount due' : balance < 0 ? 'Credit balance' : 'All paid up! 🎉'}
-              </p>
+      {/* Sticky Balance Card */}
+      <div className="sticky top-0 z-10 px-4 -mt-4">
+        <Card className="bg-white text-gray-900 shadow-xl">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-500 text-xs">Current Balance</p>
+                <p className={`text-2xl font-bold ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                  {formatCurrency(balance)}
+                </p>
+                <p className="text-gray-500 text-xs">
+                  {balance > 0 ? 'Amount due' : balance < 0 ? 'Credit balance' : 'All paid up! 🎉'}
+                </p>
+              </div>
+
+              {balance > 0 && (
+                <Button 
+                  className="bg-blue-600 hover:bg-blue-700"
+                  onClick={() => setShowPayment(true)}
+                >
+                  Pay Now
+                </Button>
+              )}
             </div>
-
-            {balance > 0 && (
-              <Button 
-                className="w-full mt-4 bg-blue-600 hover:bg-blue-700"
-                onClick={() => setShowPayment(!showPayment)}
-              >
-                {showPayment ? 'Hide Payment' : 'Pay Now'}
-              </Button>
-            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Main content */}
-      <div className="p-4 pt-24 space-y-4">
-        {error && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-sm text-red-800">{error}</p>
-          </div>
-        )}
-
-        {/* Payment Form - Collapsible */}
-        {showPayment && (
-          <Card className="border-blue-200 shadow-md">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Make a Payment</CardTitle>
-              <CardDescription>Pay via Mobile Money</CardDescription>
-            </CardHeader>
-            <CardContent>
+      {/* Payment Modal */}
+      {showPayment && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/50" 
+            onClick={() => setShowPayment(false)}
+          />
+          
+          {/* Modal Content */}
+          <div className="relative w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-white border-b p-4 flex justify-between items-center rounded-t-2xl">
+              <div>
+                <h2 className="text-lg font-semibold">Make a Payment</h2>
+                <p className="text-sm text-gray-500">Pay via Mobile Money</p>
+              </div>
+              <button 
+                onClick={() => setShowPayment(false)}
+                className="p-2 hover:bg-gray-100 rounded-full"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            {/* Modal Body */}
+            <div className="p-4">
               <form onSubmit={handlePayment} className="space-y-4">
                 <div>
                   <Label htmlFor="amount" className="text-sm">Amount (UGX)</Label>
@@ -250,8 +337,17 @@ export default function TenantDashboard() {
                   {paymentLoading ? 'Processing...' : 'Initiate Payment'}
                 </Button>
               </form>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main content */}
+      <div className="p-4 pt-4 space-y-4">
+        {error && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-sm text-red-800">{error}</p>
+          </div>
         )}
 
         {/* Account Ledger */}
@@ -282,7 +378,8 @@ export default function TenantDashboard() {
                       const txType = transaction.transaction_type || 'charge'
                       const isPayment = txType === 'payment'
                       const isCredit = isPayment
-                      const amount = Math.abs(transaction.amount)
+                      const amount = Math.abs(transaction.amount || 0)
+                      const runningBalance = transaction.calculated_balance ?? 0
                       
                       return (
                         <tr key={transaction.id} className="hover:bg-gray-50">
@@ -293,11 +390,8 @@ export default function TenantDashboard() {
                               year: 'numeric',
                             })}
                           </td>
-                          <td className="p-3 capitalize">
-                            {txType.replace(/_/g, ' ')}
-                            {transaction.description && (
-                              <span className="text-gray-500 text-xs block">{transaction.description}</span>
-                            )}
+                          <td className="p-3">
+                            {formatDescription(transaction)}
                           </td>
                           <td className="p-3 text-right text-red-600 font-medium">
                             {!isCredit ? formatCurrency(amount) : '-'}
@@ -306,24 +400,14 @@ export default function TenantDashboard() {
                             {isCredit ? formatCurrency(amount) : '-'}
                           </td>
                           <td className={`p-3 text-right font-semibold ${
-                            transaction.balance_after > 0 ? 'text-red-600' : 'text-green-600'
+                            runningBalance > 0 ? 'text-red-600' : 'text-green-600'
                           }`}>
-                            {formatCurrency(transaction.balance_after)}
+                            {formatCurrency(runningBalance)}
                           </td>
                         </tr>
                       )
                     })}
                   </tbody>
-                  <tfoot className="bg-gray-100 border-t-2">
-                    <tr>
-                      <td colSpan={4} className="p-3 font-semibold text-right">Current Balance:</td>
-                      <td className={`p-3 text-right font-bold ${
-                        balance > 0 ? 'text-red-600' : 'text-green-600'
-                      }`}>
-                        {formatCurrency(balance)}
-                      </td>
-                    </tr>
-                  </tfoot>
                 </table>
               </div>
             )}

@@ -21,6 +21,8 @@ function LoginContent() {
     const urlError = searchParams.get('error')
     if (urlError === 'auth_failed') {
       setError('Authentication failed. Please try again.')
+    } else if (urlError === 'unauthorized') {
+      setError('Access denied. You are not authorized to access the landlord portal.')
     }
   }, [searchParams])
 

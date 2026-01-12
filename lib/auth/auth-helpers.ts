@@ -12,6 +12,25 @@ export async function getUser() {
   return user
 }
 
+// Check if the user is the authorized landlord
+export function isAuthorizedLandlord(email: string | null | undefined): boolean {
+  if (!email) return false
+  const landlordEmail = process.env.LANDLORD_EMAIL?.toLowerCase()
+  if (!landlordEmail) {
+    console.warn('LANDLORD_EMAIL environment variable not set')
+    return false
+  }
+  return email.toLowerCase() === landlordEmail
+}
+
+// Get landlord and verify authorization
+export async function getAuthorizedLandlord() {
+  const user = await getUser()
+  if (!user) return null
+  if (!isAuthorizedLandlord(user.email)) return null
+  return user
+}
+
 export async function getUserRole() {
   const user = await getUser()
   if (!user) return null

@@ -19,9 +19,15 @@ export async function GET() {
       .single()
 
     // Find lease by email (auto-link by email) - use case-insensitive matching
-    const userEmailLower = user.email?.toLowerCase() || ''
+    const userEmailLower = user.email?.toLowerCase().trim() || ''
     
-    const { data: lease, error: leaseError } = await supabase
+    console.log('=== TENANT ONBOARDING STATUS DEBUG ===')
+    console.log('User ID:', user.id)
+    console.log('User email:', user.email)
+    console.log('Looking for lease with email:', userEmailLower)
+    
+    // First try to find by tenant_email
+    let { data: lease, error: leaseError } = await supabase
       .from('leases')
       .select(`
         *,
@@ -30,9 +36,40 @@ export async function GET() {
           property:properties (name)
         )
       `)
-      .ilike('tenant_email', userEmailLower)
+      .eq('tenant_email', userEmailLower)
       .in('status', ['pending', 'active'])
       .single()
+
+    console.log('Lease lookup by tenant_email result:', lease ? 'FOUND' : 'NOT FOUND', 'Error:', leaseError?.message)
+    
+    // If not found by tenant_email, try by tenant_id (for existing tenants)
+    if (!lease && tenant) {
+      const { data: leaseById, error: leaseByIdError } = await supabase
+        .from('leases')
+        .select(`
+          *,
+          unit:units (
+            unit_number,
+            property:properties (name)
+          )
+        `)
+        .eq('tenant_id', user.id)
+        .in('status', ['pending', 'active'])
+        .single()
+      
+      if (leaseById) {
+        console.log('Found lease by tenant_id instead')
+        lease = leaseById
+        leaseError = leaseByIdError
+      }
+    }
+    
+    // Debug: List all leases to see what's in the database
+    const { data: allLeases } = await supabase
+      .from('leases')
+      .select('id, tenant_email, tenant_id, status')
+      .limit(10)
+    console.log('All leases in DB:', JSON.stringify(allLeases, null, 2))
 
     if (!lease) {
       return NextResponse.json({

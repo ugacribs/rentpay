@@ -15,7 +15,6 @@ export default function LandlordNav() {
     { href: '/landlord/properties', label: 'Properties' },
     { href: '/landlord/tenants', label: 'Tenants' },
     { href: '/landlord/leases', label: 'Leases' },
-    { href: '/landlord/finances', label: 'Finances' },
   ]
 
   return (

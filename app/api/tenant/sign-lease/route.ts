@@ -65,18 +65,22 @@ export async function POST(request: NextRequest) {
                request.headers.get('x-real-ip') ||
                'unknown'
 
-    // Save signature
+    // Save signature (upsert to handle re-signing attempts)
     const { error: signatureError } = await supabase
       .from('lease_signatures')
-      .insert({
+      .upsert({
         lease_id: lease.id,
         signature_data,
         ip_address: ip,
+        signed_at: new Date().toISOString(),
+      }, {
+        onConflict: 'lease_id'
       })
 
     if (signatureError) {
+      console.error('Signature save error:', signatureError)
       return NextResponse.json(
-        { error: 'Failed to save signature' },
+        { error: `Failed to save signature: ${signatureError.message}` },
         { status: 500 }
       )
     }
@@ -91,29 +95,49 @@ export async function POST(request: NextRequest) {
       .eq('id', lease.id)
 
     if (updateError) {
+      console.error('Lease update error:', updateError)
       return NextResponse.json(
-        { error: 'Failed to activate lease' },
+        { error: `Failed to activate lease: ${updateError.message}` },
         { status: 500 }
       )
     }
 
     // Calculate and charge prorated rent
+    const signupDate = new Date()
     const { data: proratedAmount } = await supabase
       .rpc('calculate_prorated_rent', {
         p_lease_id: lease.id,
-        p_signup_date: new Date().toISOString().split('T')[0],
+        p_signup_date: signupDate.toISOString().split('T')[0],
       })
 
     if (proratedAmount && proratedAmount > 0) {
-      // Create prorated rent transaction
+      // Calculate the day before rent due date for description
+      // Business logic: Prorated rent covers from signup date to the day BEFORE the first rent due date
+      const rentDueDate = lease.rent_due_date || 1
+      let firstDueDate: Date
+      
+      // If signup day >= due date, first due date is in next month
+      if (signupDate.getDate() >= rentDueDate) {
+        firstDueDate = new Date(signupDate.getFullYear(), signupDate.getMonth() + 1, rentDueDate)
+      } else {
+        firstDueDate = new Date(signupDate.getFullYear(), signupDate.getMonth(), rentDueDate)
+      }
+      
+      // Day before due date is the last day of prorated period
+      const dayBeforeDueDate = new Date(firstDueDate)
+      dayBeforeDueDate.setDate(dayBeforeDueDate.getDate() - 1)
+      
+      const formatDate = (d: Date) => d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
+      
+      // Create prorated rent transaction with detailed description
       await supabase
         .from('transactions')
         .insert({
           lease_id: lease.id,
           type: 'prorated_rent',
           amount: proratedAmount,
-          description: 'Prorated rent for initial period',
-          transaction_date: new Date().toISOString().split('T')[0],
+          description: `Prorated rent for period ${formatDate(signupDate)} to ${formatDate(dayBeforeDueDate)}`,
+          transaction_date: signupDate.toISOString().split('T')[0],
         })
 
       // Mark prorated rent as charged

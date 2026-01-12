@@ -78,7 +78,7 @@ export default function RentDueDatePage() {
                 <SelectTrigger id="dueDate">
                   <SelectValue placeholder="Select day (1-31)" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="popper" className="max-h-60">
                   {days.map((day) => (
                     <SelectItem key={day} value={day.toString()}>
                       {day}{day === 1 ? 'st' : day === 2 ? 'nd' : day === 3 ? 'rd' : 'th'} of each month

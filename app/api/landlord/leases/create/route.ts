@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { getUser } from '@/lib/auth/auth-helpers'
+import { getAuthorizedLandlord } from '@/lib/auth/auth-helpers'
 
 // Generate a random 6-character alphanumeric access code
 function generateAccessCode(): string {
@@ -14,7 +14,7 @@ function generateAccessCode(): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getUser()
+    const user = await getAuthorizedLandlord()
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }

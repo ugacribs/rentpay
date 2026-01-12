@@ -35,10 +35,25 @@ export async function GET(request: Request) {
     }
   )
 
+  // Helper function to check if email is authorized landlord
+  const isAuthorizedLandlord = (email: string | null | undefined): boolean => {
+    if (!email) return false
+    const landlordEmail = process.env.LANDLORD_EMAIL?.toLowerCase()
+    if (!landlordEmail) return false
+    return email.toLowerCase() === landlordEmail
+  }
+
   // Handle PKCE flow (code parameter)
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
+      // Check if user is authorized landlord
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!isAuthorizedLandlord(user?.email)) {
+        // Sign out unauthorized user
+        await supabase.auth.signOut()
+        return NextResponse.redirect(`${baseUrl}/landlord/login?error=unauthorized`)
+      }
       return NextResponse.redirect(`${baseUrl}/landlord/dashboard`)
     }
     console.error('Landlord auth callback error (code):', error)
@@ -51,6 +66,13 @@ export async function GET(request: Request) {
       type: type as 'email' | 'signup' | 'magiclink',
     })
     if (!error) {
+      // Check if user is authorized landlord
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!isAuthorizedLandlord(user?.email)) {
+        // Sign out unauthorized user
+        await supabase.auth.signOut()
+        return NextResponse.redirect(`${baseUrl}/landlord/login?error=unauthorized`)
+      }
       return NextResponse.redirect(`${baseUrl}/landlord/dashboard`)
     }
     console.error('Landlord auth callback error (token_hash):', error)

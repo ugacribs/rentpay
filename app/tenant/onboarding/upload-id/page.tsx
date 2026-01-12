@@ -59,30 +59,36 @@ export default function UploadIDPage() {
       reader.readAsDataURL(file)
 
       reader.onload = async () => {
-        const base64File = reader.result as string
+        try {
+          const base64File = reader.result as string
 
-        const response = await fetch('/api/tenant/upload-id', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            idType,
-            fileName: file.name,
-            fileData: base64File,
-          }),
-        })
+          const response = await fetch('/api/tenant/upload-id', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              idType,
+              fileName: file.name,
+              fileData: base64File,
+            }),
+          })
 
-        const data = await response.json()
+          const data = await response.json()
 
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to upload ID')
+          if (!response.ok) {
+            throw new Error(data.error || 'Failed to upload ID')
+          }
+
+          // Redirect to tenant dashboard
+          router.push('/tenant/dashboard')
+        } catch (err: any) {
+          setError(err.message)
+          setLoading(false)
         }
-
-        // Redirect to tenant dashboard
-        router.push('/tenant/dashboard')
       }
 
       reader.onerror = () => {
-        throw new Error('Failed to read file')
+        setError('Failed to read file')
+        setLoading(false)
       }
     } catch (err: any) {
       setError(err.message)

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
-import { getUser } from '@/lib/auth/auth-helpers'
+import { getAuthorizedLandlord } from '@/lib/auth/auth-helpers'
 
 export async function GET() {
   try {
-    const user = await getUser()
+    const user = await getAuthorizedLandlord()
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -38,7 +38,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getUser()
+    const user = await getAuthorizedLandlord()
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }

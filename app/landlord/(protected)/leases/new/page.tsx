@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,13 +11,16 @@ import { FormField } from '@/components/ui/form'
 
 export default function NewLeasePage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const preselectedUnitId = searchParams.get('unitId')
+  
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [units, setUnits] = useState<any[]>([])
   const [loadingUnits, setLoadingUnits] = useState(true)
 
   const [formData, setFormData] = useState({
-    unitId: '',
+    unitId: preselectedUnitId || '',
     tenantEmail: '',
     monthlyRent: '',
     lateFeeAmount: '',
@@ -27,6 +30,16 @@ export default function NewLeasePage() {
   useEffect(() => {
     fetchVacantUnits()
   }, [])
+
+  // Update unitId when preselectedUnitId changes or units load
+  useEffect(() => {
+    if (preselectedUnitId && units.length > 0) {
+      const unitExists = units.find(u => u.id === preselectedUnitId)
+      if (unitExists) {
+        setFormData(prev => ({ ...prev, unitId: preselectedUnitId }))
+      }
+    }
+  }, [preselectedUnitId, units])
 
   const fetchVacantUnits = async () => {
     try {

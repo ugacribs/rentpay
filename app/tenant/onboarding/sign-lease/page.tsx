@@ -60,7 +60,8 @@ export default function SignLeasePage() {
         throw new Error(data.error || 'Failed to sign lease')
       }
 
-      router.push('/tenant/onboarding/upload-id')
+      // Go directly to dashboard after signing
+      router.push('/tenant/dashboard')
     } catch (err: any) {
       setError(err.message)
     } finally {
