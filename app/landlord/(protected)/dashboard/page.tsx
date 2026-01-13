@@ -13,7 +13,13 @@ export default function LandlordDashboard() {
     pendingLeases: 0,
   })
   const [transactions, setTransactions] = useState<any[]>([])
-  const [summary, setSummary] = useState({ totalReceived: 0, totalPending: 0, totalOverdue: 0 })
+  const [summary, setSummary] = useState({
+    totalReceivedThisMonth: 0,
+    totalReceivedAllTime: 0,
+    totalPrepaid: 0,
+    totalPending: 0,
+    aging: { current: 0, days31to60: 0, days61to90: 0, over90: 0 }
+  })
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -57,7 +63,13 @@ export default function LandlordDashboard() {
         if (financesRes.ok) {
           const financesData = await financesRes.json()
           setTransactions(financesData.transactions || [])
-          setSummary(financesData.summary || { totalReceived: 0, totalPending: 0, totalOverdue: 0 })
+          setSummary(financesData.summary || {
+            totalReceivedThisMonth: 0,
+            totalReceivedAllTime: 0,
+            totalPrepaid: 0,
+            totalPending: 0,
+            aging: { current: 0, days31to60: 0, days61to90: 0, over90: 0 }
+          })
         }
       } catch (error) {
         console.error('Error fetching data:', error)
@@ -85,7 +97,7 @@ export default function LandlordDashboard() {
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader>
-            <CardDescription>Pending Payments</CardDescription>
+            <CardDescription>Outstanding Balance</CardDescription>
             <CardTitle className="text-2xl text-yellow-600">
               {loading ? '...' : `UGX ${summary.totalPending.toLocaleString()}`}
             </CardTitle>
@@ -93,18 +105,45 @@ export default function LandlordDashboard() {
         </Card>
         <Card>
           <CardHeader>
-            <CardDescription>Overdue Payments</CardDescription>
-            <CardTitle className="text-2xl text-red-600">
-              {loading ? '...' : `UGX ${summary.totalOverdue.toLocaleString()}`}
-            </CardTitle>
+            <CardDescription>Aging Analysis</CardDescription>
+            {loading ? (
+              <CardTitle className="text-2xl text-gray-400">...</CardTitle>
+            ) : (
+              <div className="space-y-1 mt-1">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">0-30 days:</span>
+                  <span className="font-medium text-yellow-600">UGX {summary.aging.current.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">31-60 days:</span>
+                  <span className="font-medium text-orange-600">UGX {summary.aging.days31to60.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">61-90 days:</span>
+                  <span className="font-medium text-red-500">UGX {summary.aging.days61to90.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">91+ days:</span>
+                  <span className="font-medium text-red-700">UGX {summary.aging.over90.toLocaleString()}</span>
+                </div>
+              </div>
+            )}
           </CardHeader>
         </Card>
         <Card>
           <CardHeader>
-            <CardDescription>Total Received</CardDescription>
+            <CardDescription>Received This Month</CardDescription>
             <CardTitle className="text-2xl text-green-600">
-              {loading ? '...' : `UGX ${summary.totalReceived.toLocaleString()}`}
+              {loading ? '...' : `UGX ${summary.totalReceivedThisMonth.toLocaleString()}`}
             </CardTitle>
+            <p className="text-xs text-gray-500 mt-1">
+              All time: {loading ? '...' : `UGX ${summary.totalReceivedAllTime.toLocaleString()}`}
+            </p>
+            {summary.totalPrepaid > 0 && (
+              <p className="text-xs text-blue-600 mt-1">
+                Prepaid: {loading ? '...' : `UGX ${summary.totalPrepaid.toLocaleString()}`}
+              </p>
+            )}
           </CardHeader>
         </Card>
       </div>

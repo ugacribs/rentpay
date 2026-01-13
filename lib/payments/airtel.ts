@@ -121,6 +121,9 @@ export async function requestToPayAirtel(
       return { success: false, error: 'Failed to authenticate with Airtel' }
     }
 
+    // Token is guaranteed to be non-null after the check above
+    const token = accessToken!
+
     // Format phone number (remove country code if present)
     let formattedPhone = phoneNumber.replace(/[^\d]/g, '')
     if (formattedPhone.startsWith('256')) {
@@ -131,7 +134,7 @@ export async function requestToPayAirtel(
     }
 
     // Authorize KYC
-    const kycAuthorized = await authorizeKYC(accessToken, formattedPhone)
+    const kycAuthorized = await authorizeKYC(token, formattedPhone)
     if (!kycAuthorized) {
       return { success: false, error: 'KYC authorization failed' }
     }
@@ -156,7 +159,7 @@ export async function requestToPayAirtel(
     const response = await fetch(`${process.env.AIRTEL_API_URL}/merchant/v1/payments/`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
+        'Authorization': `Bearer ${token}`,
         'X-Country': 'UG',
         'X-Currency': 'UGX',
         'Content-Type': 'application/json',

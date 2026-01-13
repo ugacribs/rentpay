@@ -16,6 +16,7 @@ export default function TenantsPage() {
   const [chargeTenant, setChargeTenant] = useState<any>(null)
   const [chargeAmount, setChargeAmount] = useState('')
   const [chargeDescription, setChargeDescription] = useState('')
+  const [isCredit, setIsCredit] = useState(false)
   const [addingCharge, setAddingCharge] = useState(false)
 
   useEffect(() => {
@@ -75,15 +76,17 @@ export default function TenantsPage() {
         body: JSON.stringify({
           amount: parseFloat(chargeAmount),
           description: chargeDescription,
-          type: 'adjustment'
+          type: 'adjustment',
+          isCredit: isCredit
         })
       })
 
       if (response.ok) {
-        alert('Charge added successfully!')
+        alert(isCredit ? 'Credit added successfully!' : 'Charge added successfully!')
         setChargeTenant(null)
         setChargeAmount('')
         setChargeDescription('')
+        setIsCredit(false)
         // Refresh tenants to update balance
         fetchTenants()
         // If ledger is open for this tenant, refresh it
@@ -131,22 +134,24 @@ export default function TenantsPage() {
     })
   }
 
-  // Calculate running balance for ledger
+  // Calculate running balance for ledger (newest first for display)
   const calculateLedgerWithBalance = () => {
     if (!ledgerData) return []
-    
+
     const openingBalance = ledgerData.lease?.opening_balance || 0
     let runningBalance = openingBalance
-    
-    return ledgerData.transactions.map((tx: any) => {
-      // Payments reduce balance, all other types (rent, late_fee, adjustment, prorated_rent) increase it
-      if (tx.type === 'payment') {
-        runningBalance -= tx.amount
-      } else {
-        runningBalance += tx.amount
-      }
+
+    // First calculate running balances (oldest to newest)
+    const withBalances = ledgerData.transactions.map((tx: any) => {
+      // Payments and credits are stored as negative amounts
+      // All other types (rent, late_fee, adjustment, prorated_rent) are positive
+      // Simply add the amount to get the running balance
+      runningBalance += tx.amount
       return { ...tx, runningBalance }
     })
+
+    // Reverse to show newest first
+    return withBalances.reverse()
   }
 
   if (loading) {
@@ -203,12 +208,19 @@ export default function TenantsPage() {
                       </p>
                     </div>
                     <div className="flex gap-2 flex-wrap justify-end">
-                      <Button 
+                      <Button
                         variant="default"
                         size="sm"
-                        onClick={() => setChargeTenant(chargeTenant?.id === tenant.id ? null : tenant)}
+                        onClick={() => {
+                          if (chargeTenant?.id === tenant.id) {
+                            setChargeTenant(null)
+                            setIsCredit(false)
+                          } else {
+                            setChargeTenant(tenant)
+                          }
+                        }}
                       >
-                        {chargeTenant?.id === tenant.id ? 'Cancel' : 'Add Charge'}
+                        {chargeTenant?.id === tenant.id ? 'Cancel' : 'Add Transaction'}
                       </Button>
                       <Button 
                         variant="outline"
@@ -227,11 +239,36 @@ export default function TenantsPage() {
                     </div>
                   </div>
 
-                  {/* Add Charge Form */}
+                  {/* Add Charge/Credit Form */}
                   {chargeTenant?.id === tenant.id && (
                     <div className="mt-4 pt-4 border-t">
-                      <h4 className="font-semibold text-sm text-gray-700 mb-3">Add Charge</h4>
+                      <h4 className="font-semibold text-sm text-gray-700 mb-3">Add Transaction</h4>
                       <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                        {/* Charge/Credit Toggle */}
+                        <div className="flex rounded-lg overflow-hidden border">
+                          <button
+                            type="button"
+                            onClick={() => setIsCredit(false)}
+                            className={`flex-1 py-2 px-4 text-sm font-medium transition-colors ${
+                              !isCredit
+                                ? 'bg-red-600 text-white'
+                                : 'bg-white text-gray-700 hover:bg-gray-100'
+                            }`}
+                          >
+                            Charge (Debit)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setIsCredit(true)}
+                            className={`flex-1 py-2 px-4 text-sm font-medium transition-colors ${
+                              isCredit
+                                ? 'bg-green-600 text-white'
+                                : 'bg-white text-gray-700 hover:bg-gray-100'
+                            }`}
+                          >
+                            Credit
+                          </button>
+                        </div>
                         <div className="space-y-1">
                           <Label htmlFor={`amount-${tenant.id}`}>Amount (UGX)</Label>
                           <Input
@@ -248,17 +285,17 @@ export default function TenantsPage() {
                           <Input
                             id={`desc-${tenant.id}`}
                             type="text"
-                            placeholder="e.g., Monthly rent - January 2026"
+                            placeholder={isCredit ? "e.g., Discount for early payment" : "e.g., Repair costs"}
                             value={chargeDescription}
                             onChange={(e) => setChargeDescription(e.target.value)}
                           />
                         </div>
-                        <Button 
+                        <Button
                           onClick={() => handleAddCharge(tenant.id)}
                           disabled={addingCharge}
-                          className="w-full"
+                          className={`w-full ${isCredit ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}
                         >
-                          {addingCharge ? 'Adding...' : 'Add Charge'}
+                          {addingCharge ? 'Adding...' : isCredit ? 'Add Credit' : 'Add Charge'}
                         </Button>
                       </div>
                     </div>
@@ -283,20 +320,24 @@ export default function TenantsPage() {
                             <p className="text-gray-500 text-sm p-3">No transactions yet.</p>
                           ) : (
                             <div className="max-h-64 overflow-y-auto">
-                              {calculateLedgerWithBalance().map((tx: any) => (
-                                <div key={tx.id} className="px-3 py-2 border-b last:border-0 flex justify-between items-center text-sm">
-                                  <div>
-                                    <p className="font-medium">{tx.description}</p>
-                                    <p className="text-xs text-gray-500">{formatDateTime(tx.created_at)}</p>
+                              {calculateLedgerWithBalance().map((tx: any) => {
+                                // Credits and payments have negative amounts (reduce balance)
+                                const isDebit = tx.amount > 0
+                                return (
+                                  <div key={tx.id} className="px-3 py-2 border-b last:border-0 flex justify-between items-center text-sm">
+                                    <div>
+                                      <p className="font-medium">{tx.description}</p>
+                                      <p className="text-xs text-gray-500">{formatDateTime(tx.created_at)}</p>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className={isDebit ? 'text-red-600' : 'text-green-600'}>
+                                        {isDebit ? '+' : ''}{formatCurrency(tx.amount)}
+                                      </p>
+                                      <p className="text-xs text-gray-500">Bal: {formatCurrency(tx.runningBalance)}</p>
+                                    </div>
                                   </div>
-                                  <div className="text-right">
-                                    <p className={tx.type === 'payment' ? 'text-green-600' : 'text-red-600'}>
-                                      {tx.type === 'payment' ? '-' : '+'}{formatCurrency(tx.amount)}
-                                    </p>
-                                    <p className="text-xs text-gray-500">Bal: {formatCurrency(tx.runningBalance)}</p>
-                                  </div>
-                                </div>
-                              ))}
+                                )
+                              })}
                             </div>
                           )}
                           

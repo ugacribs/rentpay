@@ -14,11 +14,14 @@ export async function POST(
 
     const { id: tenantId } = await params
     const body = await request.json()
-    const { amount, description, type = 'adjustment' } = body
+    const { amount, description, isCredit = false } = body
 
     if (!amount || amount <= 0) {
       return NextResponse.json({ error: 'Amount must be greater than 0' }, { status: 400 })
     }
+
+    // For credits, we store as negative amount (like payments)
+    const finalAmount = isCredit ? -Math.abs(amount) : Math.abs(amount)
 
     if (!description) {
       return NextResponse.json({ error: 'Description is required' }, { status: 400 })
@@ -58,13 +61,14 @@ export async function POST(
       return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
     }
 
-    // Create the transaction (charge)
+    // Create the transaction (charge or credit)
+    // Both use 'adjustment' type - the sign of amount indicates charge (positive) or credit (negative)
     const { data: transaction, error: transactionError } = await supabase
       .from('transactions')
       .insert({
         lease_id: lease.id,
-        type: type, // 'adjustment', 'rent', 'late_fee'
-        amount: amount,
+        type: 'adjustment',
+        amount: finalAmount,
         description: description,
         transaction_date: new Date().toISOString().split('T')[0], // Today's date
       })
@@ -73,7 +77,7 @@ export async function POST(
 
     if (transactionError) {
       console.error('Transaction error:', transactionError)
-      return NextResponse.json({ error: 'Failed to create charge' }, { status: 500 })
+      return NextResponse.json({ error: 'Failed to create transaction' }, { status: 500 })
     }
 
     return NextResponse.json(transaction, { status: 201 })

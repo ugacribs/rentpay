@@ -85,12 +85,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Update lease status to active and set start date
+    // Update lease status to active and set start date and signed_at
     const { error: updateError } = await supabase
       .from('leases')
       .update({
         status: 'active',
         start_date: new Date().toISOString().split('T')[0],
+        signed_at: new Date().toISOString(),
       })
       .eq('id', lease.id)
 

@@ -20,7 +20,7 @@ export async function GET() {
     const propertyIds = properties?.map(p => p.id) || []
 
     if (propertyIds.length === 0) {
-      return NextResponse.json({ transactions: [], summary: { totalReceived: 0, totalPending: 0, totalOverdue: 0 } })
+      return NextResponse.json({ transactions: [], summary: { totalReceivedThisMonth: 0, totalReceivedAllTime: 0, totalPrepaid: 0, totalPending: 0, aging: { current: 0, days31to60: 0, days61to90: 0, over90: 0 } } })
     }
 
     // Get all units for these properties
@@ -32,7 +32,7 @@ export async function GET() {
     const unitIds = units?.map(u => u.id) || []
 
     if (unitIds.length === 0) {
-      return NextResponse.json({ transactions: [], summary: { totalReceived: 0, totalPending: 0, totalOverdue: 0 } })
+      return NextResponse.json({ transactions: [], summary: { totalReceivedThisMonth: 0, totalReceivedAllTime: 0, totalPrepaid: 0, totalPending: 0, aging: { current: 0, days31to60: 0, days61to90: 0, over90: 0 } } })
     }
 
     // Get all leases for these units (include opening_balance and rent_due_date for balance calculation)
@@ -44,7 +44,7 @@ export async function GET() {
     const leaseIds = leases?.map(l => l.id) || []
 
     if (leaseIds.length === 0) {
-      return NextResponse.json({ transactions: [], summary: { totalReceived: 0, totalPending: 0, totalOverdue: 0 } })
+      return NextResponse.json({ transactions: [], summary: { totalReceivedThisMonth: 0, totalReceivedAllTime: 0, totalPrepaid: 0, totalPending: 0, aging: { current: 0, days31to60: 0, days61to90: 0, over90: 0 } } })
     }
 
     // Get all transactions for these leases (for display, limited to 50)
@@ -76,7 +76,7 @@ export async function GET() {
     // Get ALL transactions for accurate totals (no limit)
     const { data: allTransactions } = await supabase
       .from('transactions')
-      .select('id, lease_id, type, amount')
+      .select('id, lease_id, type, amount, transaction_date')
       .in('lease_id', leaseIds)
 
     // Get tenant info for each transaction
@@ -97,46 +97,111 @@ export async function GET() {
 
     // Calculate summary using ALL transactions (not limited)
     // Total received = sum of all payments (payments are stored as negative, so use Math.abs)
-    const totalReceived = (allTransactions || [])
-      .filter(t => t.type === 'payment')
+    const allPayments = (allTransactions || []).filter(t => t.type === 'payment')
+
+    const totalReceivedAllTime = allPayments
+      .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0)
+
+    // Calculate this month's payments
+    const now = new Date()
+    const currentMonth = now.getMonth()
+    const currentYear = now.getFullYear()
+
+    const totalReceivedThisMonth = allPayments
+      .filter(t => {
+        if (!t.transaction_date) return false
+        const txDate = new Date(t.transaction_date)
+        return txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear
+      })
       .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0)
     
-    // Calculate total outstanding and overdue from all active leases
-    // Balance = opening_balance + charges - payments
-    // Overdue = balance that is past the rent_due_date for the current month
+    // Calculate total outstanding, prepaid, and aging analysis from all active leases
     let totalOutstanding = 0
-    let totalOverdue = 0
+    let totalPrepaid = 0
     const activeLeases = (leases || []).filter(l => l.status === 'active')
-    
+
+    // Aging buckets
+    const aging = {
+      current: 0,      // 0-30 days
+      days31to60: 0,   // 31-60 days
+      days61to90: 0,   // 61-90 days
+      over90: 0,       // 90+ days
+    }
+
     const today = new Date()
-    const currentDay = today.getDate()
-    
+    today.setHours(0, 0, 0, 0)
+
     for (const lease of activeLeases) {
       const leaseTransactions = (allTransactions || []).filter(t => t.lease_id === lease.id)
       let balance = lease.opening_balance || 0
-      
+
       leaseTransactions.forEach(t => {
         // Payments are stored as negative amounts, other transactions as positive
         // Simply add all amounts: charges add, payments (negative) subtract
         balance += t.amount
       })
-      
+
       if (balance > 0) {
         totalOutstanding += balance
-        
-        // Check if this balance is overdue
-        // If rent_due_date is set and today is past that day, the balance is overdue
-        const rentDueDate = lease.rent_due_date || 1 // Default to 1st if not set
-        if (currentDay > rentDueDate) {
-          totalOverdue += balance
+
+        // Calculate aging based on oldest unpaid charge
+        // Sort transactions by date (oldest first) and find the oldest unpaid charge
+        const sortedTransactions = [...leaseTransactions].sort((a, b) =>
+          new Date(a.transaction_date).getTime() - new Date(b.transaction_date).getTime()
+        )
+
+        // Track running balance to find when it went positive (unpaid)
+        let runningBalance = lease.opening_balance || 0
+        let oldestUnpaidDate: Date | null = null
+
+        // If opening balance is positive, that's the oldest unpaid amount
+        if (runningBalance > 0) {
+          // Use the first transaction date or today as reference
+          const firstTx = sortedTransactions[0]
+          oldestUnpaidDate = firstTx ? new Date(firstTx.transaction_date) : today
         }
+
+        for (const tx of sortedTransactions) {
+          runningBalance += tx.amount
+          // When balance goes positive after being zero/negative, mark this as oldest unpaid
+          if (runningBalance > 0 && oldestUnpaidDate === null) {
+            oldestUnpaidDate = new Date(tx.transaction_date)
+          }
+          // If balance goes to zero or negative, reset oldest unpaid
+          if (runningBalance <= 0) {
+            oldestUnpaidDate = null
+          }
+        }
+
+        // Calculate days overdue
+        if (oldestUnpaidDate) {
+          const daysOverdue = Math.floor((today.getTime() - oldestUnpaidDate.getTime()) / (1000 * 60 * 60 * 24))
+
+          if (daysOverdue <= 30) {
+            aging.current += balance
+          } else if (daysOverdue <= 60) {
+            aging.days31to60 += balance
+          } else if (daysOverdue <= 90) {
+            aging.days61to90 += balance
+          } else {
+            aging.over90 += balance
+          }
+        } else {
+          // Default to current if we can't determine
+          aging.current += balance
+        }
+      } else if (balance < 0) {
+        // Negative balance means prepaid (credit balance)
+        totalPrepaid += Math.abs(balance)
       }
     }
 
     const summary = {
-      totalReceived,
-      totalPending: totalOutstanding, // Using pending for outstanding balances
-      totalOverdue,
+      totalReceivedThisMonth,
+      totalReceivedAllTime,
+      totalPrepaid,
+      totalPending: totalOutstanding,
+      aging,
     }
 
     return NextResponse.json({

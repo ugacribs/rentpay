@@ -24,6 +24,9 @@ export default function TenantDashboard() {
   const [amount, setAmount] = useState('')
   const [phoneNumber, setPhoneNumber] = useState('')
   const [gateway, setGateway] = useState<'mtn' | 'airtel'>('mtn')
+  
+  // Late fee countdown timer
+  const [countdown, setCountdown] = useState<{ days: number; hours: number; minutes: number; seconds: number } | null>(null)
 
   const getGreeting = () => {
     const hour = new Date().getHours()
@@ -32,9 +35,202 @@ export default function TenantDashboard() {
     return 'Good evening'
   }
 
+  // Capitalize name: first letter uppercase, rest lowercase
+  const capitalizeName = (name: string) => {
+    if (!name) return ''
+    return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase()
+  }
+
+  // Calculate late fee info based on current balance and lease terms
+  // Only shows after monthly rent is charged until late fee is charged or balance is paid
+  const getLateFeeInfo = () => {
+    if (!lease || balance <= 0) return null
+
+    const rentDueDate = lease.rent_due_date || 1
+    const lateFeeAmount = lease.late_fee_amount || 0
+    const monthlyRent = lease.monthly_rent || 1
+
+    if (lateFeeAmount <= 0) return null
+
+    // Check if there's a monthly rent charge and no late fee after it
+    // Find the most recent 'rent' transaction (not prorated_rent)
+    const rentTransactions = transactions.filter((tx: any) => tx.type === 'rent')
+    if (rentTransactions.length === 0) return null // No rent charged yet, don't show warning
+
+    // Get the most recent rent charge (transactions are already sorted newest first)
+    const lastRentCharge = rentTransactions[0]
+    const lastRentDate = new Date(lastRentCharge.created_at)
+
+    // Check if a late fee was charged after the last rent charge
+    const lateFeeAfterRent = transactions.find((tx: any) => {
+      if (tx.type !== 'late_fee') return false
+      const txDate = new Date(tx.created_at)
+      return txDate >= lastRentDate
+    })
+
+    // If late fee already charged for this cycle, don't show warning
+    if (lateFeeAfterRent) return null
+
+    // Calculate the proportional late fee based on outstanding balance
+    const proportionalLateFee = Math.round((balance / monthlyRent) * lateFeeAmount)
+
+    // Calculate late fee date (due date + 5 days = 6th day after due)
+    const now = new Date()
+    const currentDay = now.getDate()
+    const currentMonth = now.getMonth()
+    const currentYear = now.getFullYear()
+
+    // Determine the next late fee date
+    let lateFeeDay = rentDueDate + 5
+    let lateFeeMonth = currentMonth
+    let lateFeeYear = currentYear
+
+    // Handle month overflow (e.g., due date 28 + 5 = 33 → next month day 2-3)
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate()
+    if (lateFeeDay > daysInMonth) {
+      lateFeeDay = lateFeeDay - daysInMonth
+      lateFeeMonth += 1
+      if (lateFeeMonth > 11) {
+        lateFeeMonth = 0
+        lateFeeYear += 1
+      }
+    }
+
+    // If we're past the late fee day this month, it's next month's cycle
+    if (currentDay > lateFeeDay || (currentDay === lateFeeDay && now.getHours() >= 1)) {
+      // Move to next month
+      lateFeeMonth += 1
+      if (lateFeeMonth > 11) {
+        lateFeeMonth = 0
+        lateFeeYear += 1
+      }
+      // Recalculate late fee day for the new month
+      lateFeeDay = rentDueDate + 5
+      const nextMonthDays = new Date(lateFeeYear, lateFeeMonth + 1, 0).getDate()
+      if (lateFeeDay > nextMonthDays) {
+        lateFeeDay = lateFeeDay - nextMonthDays
+        lateFeeMonth += 1
+        if (lateFeeMonth > 11) {
+          lateFeeMonth = 0
+          lateFeeYear += 1
+        }
+      }
+    }
+
+    const lateFeeDate = new Date(lateFeeYear, lateFeeMonth, lateFeeDay, 0, 1, 0) // 00:01 UTC
+
+    // Calculate days remaining
+    const timeDiff = lateFeeDate.getTime() - now.getTime()
+    const daysRemaining = Math.ceil(timeDiff / (1000 * 60 * 60 * 24))
+
+    if (daysRemaining <= 0) return null
+
+    return {
+      amount: proportionalLateFee,
+      daysRemaining,
+      date: lateFeeDate
+    }
+  }
+
+  // Get the late fee target date for countdown
+  // Only returns a date if rent is charged and late fee hasn't been charged yet
+  const getLateFeeTargetDate = () => {
+    if (!lease || balance <= 0) return null
+
+    const rentDueDate = lease.rent_due_date || 1
+    const lateFeeAmount = lease.late_fee_amount || 0
+
+    if (lateFeeAmount <= 0) return null
+
+    // Check if there's a monthly rent charge and no late fee after it
+    const rentTransactions = transactions.filter((tx: any) => tx.type === 'rent')
+    if (rentTransactions.length === 0) return null
+
+    const lastRentCharge = rentTransactions[0]
+    const lastRentDate = new Date(lastRentCharge.created_at)
+
+    const lateFeeAfterRent = transactions.find((tx: any) => {
+      if (tx.type !== 'late_fee') return false
+      const txDate = new Date(tx.created_at)
+      return txDate >= lastRentDate
+    })
+
+    if (lateFeeAfterRent) return null
+
+    const now = new Date()
+    const currentDay = now.getDate()
+    const currentMonth = now.getMonth()
+    const currentYear = now.getFullYear()
+
+    let lateFeeDay = rentDueDate + 5
+    let lateFeeMonth = currentMonth
+    let lateFeeYear = currentYear
+
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate()
+    if (lateFeeDay > daysInMonth) {
+      lateFeeDay = lateFeeDay - daysInMonth
+      lateFeeMonth += 1
+      if (lateFeeMonth > 11) {
+        lateFeeMonth = 0
+        lateFeeYear += 1
+      }
+    }
+
+    if (currentDay > lateFeeDay || (currentDay === lateFeeDay && now.getHours() >= 1)) {
+      lateFeeMonth += 1
+      if (lateFeeMonth > 11) {
+        lateFeeMonth = 0
+        lateFeeYear += 1
+      }
+      lateFeeDay = rentDueDate + 5
+      const nextMonthDays = new Date(lateFeeYear, lateFeeMonth + 1, 0).getDate()
+      if (lateFeeDay > nextMonthDays) {
+        lateFeeDay = lateFeeDay - nextMonthDays
+        lateFeeMonth += 1
+        if (lateFeeMonth > 11) {
+          lateFeeMonth = 0
+          lateFeeYear += 1
+        }
+      }
+    }
+
+    return new Date(lateFeeYear, lateFeeMonth, lateFeeDay, 0, 1, 0)
+  }
+
   useEffect(() => {
     fetchDashboardData()
   }, [])
+
+  // Countdown timer effect
+  useEffect(() => {
+    const targetDate = getLateFeeTargetDate()
+    if (!targetDate) {
+      setCountdown(null)
+      return
+    }
+
+    const updateCountdown = () => {
+      const now = new Date()
+      const diff = targetDate.getTime() - now.getTime()
+
+      if (diff <= 0) {
+        setCountdown(null)
+        return
+      }
+
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000)
+
+      setCountdown({ days, hours, minutes, seconds })
+    }
+
+    updateCountdown()
+    const interval = setInterval(updateCountdown, 1000)
+
+    return () => clearInterval(interval)
+  }, [lease, balance])
 
   const fetchDashboardData = async () => {
     try {
@@ -52,7 +248,7 @@ export default function TenantDashboard() {
       // Get tenant name from profile
       if (profileRes.ok) {
         const profileData = await profileRes.json()
-        setTenantName(profileData.first_name || '')
+        setTenantName(capitalizeName(profileData.first_name || ''))
       }
 
       // Calculate balance
@@ -90,15 +286,10 @@ export default function TenantDashboard() {
         
         // Calculate running balances for actual transactions
         const withBalances = oldestFirst.map((tx: any) => {
-          const txType = tx.type || 'charge'
-          const amount = Math.abs(tx.amount || 0)
-          // Charges/fees add to balance (what tenant owes)
-          // Payments reduce balance
-          if (txType === 'payment') {
-            runningBalance -= amount
-          } else {
-            runningBalance += amount
-          }
+          const txAmount = tx.amount || 0
+          // Simply add the amount - payments and credits are already negative in DB
+          // Charges/fees are positive, payments/credits are negative
+          runningBalance += txAmount
           return { ...tx, calculated_balance: runningBalance }
         })
         
@@ -270,15 +461,62 @@ export default function TenantDashboard() {
                 </p>
               </div>
 
-              {balance > 0 && (
-                <Button 
-                  className="bg-blue-600 hover:bg-blue-700"
-                  onClick={() => setShowPayment(true)}
-                >
-                  Pay Now
-                </Button>
-              )}
+              <Button
+                className="bg-blue-600 hover:bg-blue-700"
+                onClick={() => setShowPayment(true)}
+              >
+                Pay Now
+              </Button>
             </div>
+            
+            {/* Late Fee Warning */}
+            {(() => {
+              const lateFeeInfo = getLateFeeInfo()
+              if (!lateFeeInfo || !countdown) return null
+              
+              const pad = (n: number) => n.toString().padStart(2, '0')
+              
+              return (
+                <div className="mt-3 pt-3 border-t border-orange-200 bg-orange-50 -mx-4 -mb-4 px-4 py-3 rounded-b-lg">
+                  <div className="flex items-start gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-orange-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <div className="text-xs text-orange-800">
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <span><span className="font-semibold">Late fee notice:</span> A fee of{' '}
+                        <span className="font-bold">{formatCurrency(lateFeeInfo.amount)}</span> will be charged if this balance remains unpaid in</span>
+                        <div className="inline-flex items-center bg-gray-900 text-orange-400 font-mono text-sm px-2 py-1 rounded gap-1">
+                          {countdown.days > 0 && (
+                            <>
+                              <span className="font-bold">{pad(countdown.days)}</span>
+                              <span className="text-orange-300 text-xs">Days</span>
+                              <span className="text-orange-300 mx-0.5">:</span>
+                            </>
+                          )}
+                          {(countdown.days > 0 || countdown.hours > 0) && (
+                            <>
+                              <span className="font-bold">{pad(countdown.hours)}</span>
+                              <span className="text-orange-300 text-xs">Hrs</span>
+                              <span className="text-orange-300 mx-0.5">:</span>
+                            </>
+                          )}
+                          {(countdown.days > 0 || countdown.hours > 0 || countdown.minutes > 0) && (
+                            <>
+                              <span className="font-bold">{pad(countdown.minutes)}</span>
+                              <span className="text-orange-300 text-xs">Mins</span>
+                              <span className="text-orange-300 mx-0.5">:</span>
+                            </>
+                          )}
+                          <span className="font-bold">{pad(countdown.seconds)}</span>
+                          <span className="text-orange-300 text-xs">Secs</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
           </CardContent>
         </Card>
       </div>
@@ -404,9 +642,10 @@ export default function TenantDashboard() {
                     {/* Show transactions with latest first */}
                     {transactions.map((transaction) => {
                       const txType = transaction.type || 'charge'
-                      const isPayment = txType === 'payment'
-                      const isCredit = isPayment
-                      const amount = Math.abs(transaction.amount || 0)
+                      const rawAmount = transaction.amount || 0
+                      // Credits: payments OR any transaction with negative amount (e.g., adjustment credits)
+                      const isCredit = txType === 'payment' || rawAmount < 0
+                      const amount = Math.abs(rawAmount)
                       const runningBalance = transaction.calculated_balance ?? 0
                       
                       return (
