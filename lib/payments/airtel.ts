@@ -109,12 +109,6 @@ export async function requestToPayAirtel(
   reference: string = 'Rent Payment'
 ): Promise<AirtelCollectionResponse> {
   try {
-    // SIMULATION MODE: short-circuit with success (remove this block to restore real Airtel calls)
-    return {
-      success: true,
-      transactionId: `SIM-AIR-${transactionId}`,
-    }
-
     // Get access token
     const accessToken = await getAccessToken()
     if (!accessToken) {

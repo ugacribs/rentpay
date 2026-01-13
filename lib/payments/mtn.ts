@@ -121,12 +121,6 @@ export async function requestToPayMTN(
   payeeNote: string = 'Rent Payment'
 ): Promise<MTNCollectionResponse> {
   try {
-    // SIMULATION MODE: short-circuit with success (remove this block to restore real MTN calls)
-    return {
-      success: true,
-      referenceId: `SIM-MTN-${externalId}`,
-    }
-
     // Get access token
     const accessToken = await getAccessToken()
     if (!accessToken) {
@@ -155,7 +149,7 @@ export async function requestToPayMTN(
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'X-Reference-Id': referenceId,
-        'X-Target-Environment': process.env.NODE_ENV === 'production' ? 'live' : 'sandbox',
+        'X-Target-Environment': process.env.PAYMENT_MODE === 'live' ? 'live' : 'sandbox',
         'Ocp-Apim-Subscription-Key': process.env.MTN_COLLECTION_PRIMARY_KEY!,
         'Content-Type': 'application/json',
       },
@@ -206,7 +200,7 @@ export async function checkPaymentStatusMTN(referenceId: string): Promise<{
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
-          'X-Target-Environment': process.env.NODE_ENV === 'production' ? 'live' : 'sandbox',
+          'X-Target-Environment': process.env.PAYMENT_MODE === 'live' ? 'live' : 'sandbox',
           'Ocp-Apim-Subscription-Key': process.env.MTN_COLLECTION_PRIMARY_KEY!,
         },
       }
