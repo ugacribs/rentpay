@@ -90,7 +90,7 @@ export default function TenantDashboard() {
         
         // Calculate running balances for actual transactions
         const withBalances = oldestFirst.map((tx: any) => {
-          const txType = tx.transaction_type || 'charge'
+          const txType = tx.type || 'charge'
           const amount = Math.abs(tx.amount || 0)
           // Charges/fees add to balance (what tenant owes)
           // Payments reduce balance
@@ -192,7 +192,7 @@ export default function TenantDashboard() {
 
   // Helper to format description with dates
   const formatDescription = (transaction: any) => {
-    const txType = transaction.transaction_type || 'charge'
+    const txType = transaction.type || 'charge'
     const txDate = new Date(transaction.created_at)
     
     // Format date as DD/MM/YYYY
@@ -403,7 +403,7 @@ export default function TenantDashboard() {
                   <tbody className="divide-y">
                     {/* Show transactions with latest first */}
                     {transactions.map((transaction) => {
-                      const txType = transaction.transaction_type || 'charge'
+                      const txType = transaction.type || 'charge'
                       const isPayment = txType === 'payment'
                       const isCredit = isPayment
                       const amount = Math.abs(transaction.amount || 0)

@@ -96,10 +96,10 @@ export async function GET() {
     )
 
     // Calculate summary using ALL transactions (not limited)
-    // Total received = sum of all payments
+    // Total received = sum of all payments (payments are stored as negative, so use Math.abs)
     const totalReceived = (allTransactions || [])
       .filter(t => t.type === 'payment')
-      .reduce((sum, t) => sum + (t.amount || 0), 0)
+      .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0)
     
     // Calculate total outstanding and overdue from all active leases
     // Balance = opening_balance + charges - payments
@@ -116,11 +116,9 @@ export async function GET() {
       let balance = lease.opening_balance || 0
       
       leaseTransactions.forEach(t => {
-        if (t.type === 'payment') {
-          balance -= t.amount
-        } else {
-          balance += t.amount
-        }
+        // Payments are stored as negative amounts, other transactions as positive
+        // Simply add all amounts: charges add, payments (negative) subtract
+        balance += t.amount
       })
       
       if (balance > 0) {

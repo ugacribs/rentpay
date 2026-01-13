@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
 
 /**
  * MTN Mobile Money Webhook Handler
@@ -15,6 +15,12 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {
+    // TODO: Add webhook signature verification for production
+    // const signature = request.headers.get('x-mtn-signature')
+    // if (!verifyMTNSignature(signature, payload)) {
+    //   return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+    // }
+
     // Parse webhook payload
     const payload = await request.json()
 
@@ -39,7 +45,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = await createClient()
+    // Use service client - webhooks have no user session
+    const supabase = createServiceClient()
 
     // Find payment transaction by gateway reference
     const { data: payment, error: paymentError } = await supabase

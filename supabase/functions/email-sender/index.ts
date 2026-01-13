@@ -91,7 +91,11 @@ serve(async (req) => {
         }
         */
 
-        // For now, just mark as sent (DEVELOPMENT ONLY)
+        // DEVELOPMENT MODE: Log email and mark as sent
+        // In production, uncomment the Resend integration above and set RESEND_API_KEY
+        // WARNING: Emails are NOT actually being sent until you configure an email provider!
+        console.warn('[DEV MODE] Email logged but NOT sent - configure RESEND_API_KEY for production')
+
         const { error: updateError } = await supabase
           .from('email_queue')
           .update({

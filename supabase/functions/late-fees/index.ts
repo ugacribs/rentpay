@@ -29,8 +29,9 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Get current date
+    // Get current date in UTC
     const now = new Date()
+    const today = now.toISOString().split('T')[0] // YYYY-MM-DD format in UTC
 
     // Calculate what the due date was 5 days ago (6th day = 5 days late)
     const fiveDaysAgo = new Date(now)
@@ -40,9 +41,10 @@ serve(async (req) => {
     console.log(`Running late fees for leases with due date: ${targetDueDate} (5 days ago)`)
 
     // Find all active leases where rent_due_date was 5 days ago
+    // Also fetch first_billing_date to check if we should charge late fees yet
     const { data: leases, error: leasesError } = await supabase
       .from('leases')
-      .select('id, late_fee_amount, monthly_rent, tenant_id, rent_due_date')
+      .select('id, late_fee_amount, monthly_rent, tenant_id, rent_due_date, first_billing_date')
       .eq('status', 'active')
       .eq('rent_due_date', targetDueDate)
 
@@ -67,6 +69,20 @@ serve(async (req) => {
       try {
         console.log(`Checking lease ${lease.id} for late fees`)
 
+        // Skip late fees if the first full billing cycle hasn't happened yet
+        // The first_billing_date is when the first monthly rent is charged (day before first due date)
+        // Late fees should only apply AFTER that first billing has occurred
+        if (lease.first_billing_date) {
+          const firstBillingDate = new Date(lease.first_billing_date)
+          const today = new Date(now.toISOString().split('T')[0]) // Strip time for comparison
+
+          if (today <= firstBillingDate) {
+            console.log(`Skipping lease ${lease.id} - first billing date (${lease.first_billing_date}) hasn't passed yet. Late fees only apply to full billing cycles, not prorated rent.`)
+            results.skipped++
+            continue
+          }
+        }
+
         // Get current balance for this lease
         const { data: balance, error: balanceError } = await supabase.rpc('get_lease_balance', {
           lease_uuid: lease.id,
@@ -81,6 +97,21 @@ serve(async (req) => {
 
         // Only charge late fee if there's an outstanding balance
         if (balance && balance > 0) {
+          // IDEMPOTENCY CHECK: Verify late fee wasn't already charged today for this lease
+          const { data: existingLateFee } = await supabase
+            .from('transactions')
+            .select('id')
+            .eq('lease_id', lease.id)
+            .eq('type', 'late_fee')
+            .eq('transaction_date', today)
+            .single()
+
+          if (existingLateFee) {
+            console.log(`Skipping lease ${lease.id} - late fee already charged today (idempotency check)`)
+            results.skipped++
+            continue
+          }
+
           console.log(`Lease ${lease.id} has balance ${balance}, charging proportional late fee`)
 
           // Call the database function to charge proportional late fee

@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
-import { getUser } from '@/lib/auth/auth-helpers'
+import { getUser, isAuthorizedLandlord } from '@/lib/auth/auth-helpers'
 
-// Debug endpoint - remove in production
+// Debug endpoint - disabled in production
 export async function GET() {
+  // SECURITY: Only allow in development mode
+  if (process.env.NODE_ENV !== 'development') {
+    return NextResponse.json({ error: 'Debug endpoints disabled in production' }, { status: 403 })
+  }
+
   try {
     const user = await getUser()
 
@@ -12,6 +17,11 @@ export async function GET() {
         authenticated: false,
         message: 'Not logged in'
       })
+    }
+
+    // SECURITY: Only landlords can access debug info
+    if (!isAuthorizedLandlord(user.email)) {
+      return NextResponse.json({ error: 'Forbidden - Landlord access only' }, { status: 403 })
     }
 
     const supabase = createServiceClient()

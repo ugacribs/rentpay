@@ -90,14 +90,12 @@ export async function GET() {
     leases?.forEach(lease => {
       const openingBalance = lease.opening_balance || 0
       const leaseTransactions = transactions?.filter(t => t.lease_id === lease.id) || []
-      
+
       let balance = openingBalance
       leaseTransactions.forEach(t => {
-        if (t.type === 'payment') {
-          balance -= t.amount
-        } else {
-          balance += t.amount
-        }
+        // Payments are stored as negative amounts, other transactions as positive
+        // Simply add all amounts: charges add, payments (negative) subtract
+        balance += t.amount
       })
       leaseBalances[lease.id] = balance
     })

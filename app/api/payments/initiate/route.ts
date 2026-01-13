@@ -125,6 +125,72 @@ export async function POST(request: NextRequest) {
     // Generate unique transaction ID
     const transactionId = `RENT-${lease.id.substring(0, 8)}-${Date.now()}`
 
+    // Check if we're in development mode - simulate successful payment
+    const isDevelopment = process.env.NODE_ENV === 'development'
+
+    if (isDevelopment) {
+      // DEVELOPMENT MODE: Simulate successful payment immediately
+      console.log('[DEV MODE] Simulating successful payment:', { amount, gateway, phone: formattedPhone })
+
+      // Create payment transaction as completed
+      const { data: paymentTransaction, error: paymentError } = await supabase
+        .from('payment_transactions')
+        .insert({
+          lease_id: lease.id,
+          gateway,
+          phone_number: formattedPhone,
+          amount,
+          status: 'completed',
+          gateway_reference: `DEV-${transactionId}`,
+          webhook_data: {
+            dev_mode: true,
+            simulated_at: new Date().toISOString(),
+          },
+        })
+        .select()
+        .single()
+
+      if (paymentError) {
+        console.error('Payment transaction creation error:', paymentError)
+        return NextResponse.json(
+          { error: 'Failed to create payment transaction' },
+          { status: 500 }
+        )
+      }
+
+      // Create ledger transaction (same as webhook would do)
+      const { data: ledgerTransaction, error: ledgerError } = await supabase
+        .from('transactions')
+        .insert({
+          lease_id: lease.id,
+          type: 'payment',
+          amount: -amount, // Negative because it's a payment (credit)
+          description: `Payment via ${gateway.toUpperCase()} Mobile Money (DEV-${transactionId})`,
+          transaction_date: new Date().toISOString().split('T')[0],
+        })
+        .select()
+        .single()
+
+      if (ledgerError) {
+        console.error('Ledger transaction creation error:', ledgerError)
+      } else {
+        // Link transaction to payment
+        await supabase
+          .from('payment_transactions')
+          .update({ transaction_id: ledgerTransaction.id })
+          .eq('id', paymentTransaction.id)
+      }
+
+      return NextResponse.json({
+        success: true,
+        payment_id: paymentTransaction.id,
+        gateway_reference: `DEV-${transactionId}`,
+        message: `[DEV MODE] Payment of UGX ${amount.toLocaleString()} completed successfully. Your balance has been updated.`,
+        dev_mode: true,
+      })
+    }
+
+    // PRODUCTION MODE: Normal payment flow
     // Create payment transaction record
     const { data: paymentTransaction, error: paymentError } = await supabase
       .from('payment_transactions')

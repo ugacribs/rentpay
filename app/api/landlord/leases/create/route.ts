@@ -2,12 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getAuthorizedLandlord } from '@/lib/auth/auth-helpers'
 
-// Generate a random 6-character alphanumeric access code
+import { randomBytes } from 'crypto'
+
+// Generate a cryptographically secure 8-character alphanumeric access code
 function generateAccessCode(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+  const bytes = randomBytes(8)
   let code = ''
-  for (let i = 0; i < 6; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length))
+  for (let i = 0; i < 8; i++) {
+    code += chars.charAt(bytes[i] % chars.length)
   }
   return code
 }

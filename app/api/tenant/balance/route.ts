@@ -19,6 +19,26 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Lease ID required' }, { status: 400 })
     }
 
+    // SECURITY: Verify the user owns this lease before returning balance
+    const { data: lease, error: leaseError } = await serviceClient
+      .from('leases')
+      .select('id, tenant_id, tenant_email')
+      .eq('id', leaseId)
+      .single()
+
+    if (leaseError || !lease) {
+      return NextResponse.json({ error: 'Lease not found' }, { status: 404 })
+    }
+
+    // Check ownership: either tenant_id matches OR email matches (for new tenants)
+    const userEmail = (user.email || '').toLowerCase()
+    const leaseEmail = (lease.tenant_email || '').toLowerCase()
+    const isOwner = lease.tenant_id === user.id || leaseEmail === userEmail
+
+    if (!isOwner) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    }
+
     // Get balance using the database function with service client
     const { data, error } = await serviceClient.rpc('get_lease_balance', {
       lease_uuid: leaseId,

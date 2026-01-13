@@ -82,6 +82,21 @@ serve(async (req) => {
 
         console.log(`Charging rent for lease ${lease.id}`)
 
+        // IDEMPOTENCY CHECK: Verify rent wasn't already charged today for this lease
+        const { data: existingCharge } = await supabase
+          .from('transactions')
+          .select('id')
+          .eq('lease_id', lease.id)
+          .eq('type', 'rent')
+          .eq('transaction_date', today)
+          .single()
+
+        if (existingCharge) {
+          console.log(`Skipping lease ${lease.id} - rent already charged today (idempotency check)`)
+          results.skipped++
+          continue
+        }
+
         // Compute billing period: tomorrow through the day before next month's same date
         const billingDate = new Date(today)
         const periodStart = new Date(billingDate)
