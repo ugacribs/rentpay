@@ -2,13 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 
 /**
- * Airtel Money Webhook Handler
+ * MTN Mobile Money Callback Handler
  *
- * This endpoint receives payment notifications from Airtel when a transaction is completed.
- * Airtel will POST to this endpoint with transaction status updates.
+ * Endpoint: /api/collections/mtn/callback
+ *
+ * This endpoint receives payment notifications from MTN when a transaction is completed.
+ * MTN will POST to this endpoint with transaction status updates.
  *
  * IMPORTANT: In production, you must:
- * 1. Verify the request is from Airtel (check IP whitelist or signature)
+ * 1. Verify the request is from MTN (check IP whitelist or signature)
  * 2. Handle duplicate notifications (idempotency)
  * 3. Log all webhook calls for debugging
  */
@@ -16,33 +18,34 @@ import { createServiceClient } from '@/lib/supabase/server'
 export async function POST(request: NextRequest) {
   try {
     // TODO: Add webhook signature verification for production
-    // const signature = request.headers.get('x-airtel-signature')
-    // if (!verifyAirtelSignature(signature, payload)) {
+    // const signature = request.headers.get('x-mtn-signature')
+    // if (!verifyMTNSignature(signature, payload)) {
     //   return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
     // }
 
     // Parse webhook payload
     const payload = await request.json()
 
-    console.log('Airtel Webhook received:', JSON.stringify(payload, null, 2))
+    console.log('MTN Callback received:', JSON.stringify(payload, null, 2))
 
     // Extract transaction details
-    // Note: Actual payload structure may vary - check Airtel documentation
+    // Note: Actual payload structure may vary - check MTN documentation
     const {
-      transaction,
+      referenceId,
+      status,
+      amount,
+      currency,
+      financialTransactionId,
+      externalId,
+      reason,
     } = payload
 
-    if (!transaction || !transaction.id) {
+    if (!referenceId) {
       return NextResponse.json(
-        { error: 'Missing transaction ID' },
+        { error: 'Missing referenceId' },
         { status: 400 }
       )
     }
-
-    const transactionId = transaction.id
-    const status = transaction.status // TS = Success, TF = Failed, etc.
-    const amount = transaction.amount
-    const airtelMoneyId = transaction.airtel_money_id
 
     // Use service client - webhooks have no user session
     const supabase = createServiceClient()
@@ -51,12 +54,12 @@ export async function POST(request: NextRequest) {
     const { data: payment, error: paymentError } = await supabase
       .from('payment_transactions')
       .select('*')
-      .eq('gateway_reference', transactionId)
-      .eq('gateway', 'airtel')
+      .eq('gateway_reference', referenceId)
+      .eq('gateway', 'mtn')
       .single()
 
     if (paymentError || !payment) {
-      console.error('Payment not found for transaction:', transactionId)
+      console.error('Payment not found for reference:', referenceId)
       return NextResponse.json(
         { error: 'Payment not found' },
         { status: 404 }
@@ -65,16 +68,16 @@ export async function POST(request: NextRequest) {
 
     // Check if already processed (idempotency)
     if (payment.status === 'completed') {
-      console.log('Payment already processed:', transactionId)
+      console.log('Payment already processed:', referenceId)
       return NextResponse.json({ status: 'already_processed' })
     }
 
     // Determine new status
     let newStatus: 'pending' | 'completed' | 'failed' = 'pending'
 
-    if (status === 'TS') { // Transaction Successful
+    if (status === 'SUCCESSFUL') {
       newStatus = 'completed'
-    } else if (['TF', 'TR'].includes(status)) { // Failed or Reversed
+    } else if (status === 'FAILED') {
       newStatus = 'failed'
     }
 
@@ -99,7 +102,7 @@ export async function POST(request: NextRequest) {
           lease_id: payment.lease_id,
           type: 'payment',
           amount: -payment.amount, // Negative because it's a payment (credit)
-          description: `Payment via Airtel Money (${airtelMoneyId})`,
+          description: `Payment via MTN Mobile Money (${financialTransactionId})`,
           transaction_date: new Date().toISOString().split('T')[0],
         })
         .select()
@@ -123,9 +126,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ status: 'success' })
   } catch (error) {
-    console.error('Airtel webhook error:', error)
+    console.error('MTN callback error:', error)
     return NextResponse.json(
-      { error: 'Webhook processing failed' },
+      { error: 'Callback processing failed' },
       { status: 500 }
     )
   }
@@ -134,7 +137,8 @@ export async function POST(request: NextRequest) {
 // Health check endpoint
 export async function GET() {
   return NextResponse.json({
-    webhook: 'airtel',
+    callback: 'mtn',
+    path: '/api/collections/mtn/callback',
     status: 'active',
     timestamp: new Date().toISOString(),
   })
