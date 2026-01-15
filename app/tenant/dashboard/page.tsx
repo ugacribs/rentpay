@@ -197,6 +197,9 @@ export default function TenantDashboard() {
     return new Date(lateFeeYear, lateFeeMonth, lateFeeDay, 0, 1, 0)
   }, [lease, balance, transactions])
 
+  const [leaseTerminated, setLeaseTerminated] = useState(false)
+  const [terminatedMessage, setTerminatedMessage] = useState('')
+
   const fetchDashboardData = useCallback(async () => {
     try {
       const [leaseRes, transactionsRes, profileRes] = await Promise.all([
@@ -205,7 +208,16 @@ export default function TenantDashboard() {
         fetch('/api/tenant/profile'),
       ])
 
-      if (!leaseRes.ok) throw new Error('Failed to fetch lease data')
+      if (!leaseRes.ok) {
+        const leaseError = await leaseRes.json()
+        if (leaseError.code === 'LEASE_TERMINATED') {
+          setLeaseTerminated(true)
+          setTerminatedMessage(leaseError.error)
+          setLoading(false)
+          return
+        }
+        throw new Error('Failed to fetch lease data')
+      }
 
       const leaseData = await leaseRes.json()
       setLease(leaseData)
@@ -377,6 +389,32 @@ export default function TenantDashboard() {
           <div className="h-32 bg-white/20 rounded"></div>
           <div className="h-24 bg-white/20 rounded"></div>
         </div>
+      </div>
+    )
+  }
+
+  // Show lease terminated message
+  if (leaseTerminated) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-gray-600 to-gray-800 p-4 flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+              <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <CardTitle className="text-xl text-gray-800">Lease Terminated</CardTitle>
+            <CardDescription className="text-gray-600 mt-2">
+              {terminatedMessage || 'Your lease has been terminated. Please contact your landlord for more information.'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-center">
+            <p className="text-sm text-gray-500">
+              If you believe this is an error, please reach out to your property manager.
+            </p>
+          </CardContent>
+        </Card>
       </div>
     )
   }

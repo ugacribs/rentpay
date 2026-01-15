@@ -9,6 +9,8 @@ export default function LeasesPage() {
   const [leases, setLeases] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedLease, setSelectedLease] = useState<any>(null)
+  const [terminatingLeaseId, setTerminatingLeaseId] = useState<string | null>(null)
+  const [showTerminateConfirm, setShowTerminateConfirm] = useState<string | null>(null)
 
   useEffect(() => {
     fetchLeases()
@@ -25,6 +27,30 @@ export default function LeasesPage() {
       console.error('Failed to fetch leases:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleTerminateLease = async (leaseId: string) => {
+    setTerminatingLeaseId(leaseId)
+    try {
+      const response = await fetch(`/api/landlord/leases/${leaseId}/terminate`, {
+        method: 'POST',
+      })
+
+      if (response.ok) {
+        // Refresh the leases list
+        await fetchLeases()
+        setShowTerminateConfirm(null)
+        setSelectedLease(null)
+      } else {
+        const data = await response.json()
+        alert(data.error || 'Failed to terminate lease')
+      }
+    } catch (error) {
+      console.error('Failed to terminate lease:', error)
+      alert('Failed to terminate lease')
+    } finally {
+      setTerminatingLeaseId(null)
     }
   }
 
@@ -205,6 +231,63 @@ export default function LeasesPage() {
                           </div>
                         </div>
                       </div>
+
+                      {/* Terminate Lease Section - Only show for active or pending leases */}
+                      {(lease.status === 'active' || lease.status === 'pending') && (
+                        <div className="space-y-2 md:col-span-2">
+                          <h4 className="font-semibold text-sm text-gray-700">Lease Actions</h4>
+                          <div className="bg-red-50 p-3 rounded-lg border border-red-200">
+                            {showTerminateConfirm === lease.id ? (
+                              <div className="space-y-3">
+                                <p className="text-sm text-red-800 font-medium">
+                                  Are you sure you want to terminate this lease?
+                                </p>
+                                <p className="text-xs text-red-700">
+                                  This will:
+                                </p>
+                                <ul className="text-xs text-red-700 list-disc list-inside space-y-1">
+                                  <li>Mark the lease as terminated</li>
+                                  <li>Set the unit back to vacant</li>
+                                  <li>Block the tenant from accessing the app</li>
+                                  <li>Keep the lease record for historical purposes</li>
+                                </ul>
+                                <div className="flex gap-2 pt-2">
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => handleTerminateLease(lease.id)}
+                                    disabled={terminatingLeaseId === lease.id}
+                                  >
+                                    {terminatingLeaseId === lease.id ? 'Terminating...' : 'Yes, Terminate Lease'}
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setShowTerminateConfirm(null)}
+                                    disabled={terminatingLeaseId === lease.id}
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="text-sm text-red-800 font-medium">Terminate Lease</p>
+                                  <p className="text-xs text-red-700">End this lease agreement and make the unit available</p>
+                                </div>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => setShowTerminateConfirm(lease.id)}
+                                >
+                                  Terminate
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

@@ -11,6 +11,20 @@ export async function GET() {
 
     const supabase = createServiceClient()
 
+    // First check if tenant is archived (lease terminated)
+    const { data: tenant } = await supabase
+      .from('tenants')
+      .select('status')
+      .eq('id', user.id)
+      .single()
+
+    if (tenant?.status === 'archived') {
+      return NextResponse.json({ 
+        error: 'Your lease has been terminated. Please contact your landlord for more information.',
+        code: 'LEASE_TERMINATED'
+      }, { status: 403 })
+    }
+
     // Try to get lease by tenant_id first
     let lease = null
 

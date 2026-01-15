@@ -52,13 +52,18 @@ export async function POST(
     // Get lease for this tenant in one of our units
     const { data: lease, error: leaseError } = await supabase
       .from('leases')
-      .select('id')
+      .select('id, status')
       .eq('tenant_id', tenantId)
       .in('unit_id', unitIds)
       .single()
 
     if (leaseError || !lease) {
       return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
+    }
+
+    // Check if lease is terminated
+    if (lease.status === 'terminated') {
+      return NextResponse.json({ error: 'Cannot add transactions to a terminated lease' }, { status: 400 })
     }
 
     // Create the transaction (charge or credit)

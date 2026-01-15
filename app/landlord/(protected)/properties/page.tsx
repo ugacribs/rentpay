@@ -172,47 +172,67 @@ export default function PropertiesPage() {
                       <p className="text-gray-500 text-sm">Loading ledger...</p>
                     ) : ledgerData ? (
                       <div className="bg-gray-50 rounded-lg overflow-hidden">
-                        {/* Opening Balance */}
-                        <div className="px-3 py-2 border-b bg-gray-100 flex justify-between text-sm">
-                          <span className="font-medium">Total Opening Balance</span>
-                          <span className="font-medium">{formatCurrency(ledgerData.totalOpeningBalance || 0)}</span>
-                        </div>
-
-                        {/* Transactions */}
-                        {calculateLedgerWithBalance().length === 0 ? (
-                          <p className="text-gray-500 text-sm p-3">No transactions yet.</p>
-                        ) : (
-                          <div className="max-h-96 overflow-y-auto">
-                            {calculateLedgerWithBalance().map((tx: any) => {
-                              // Credits and payments have negative amounts (reduce balance)
-                              const isDebit = tx.amount > 0
-                              return (
-                                <div key={tx.id} className="px-3 py-2 border-b last:border-0 flex justify-between items-center text-sm">
-                                  <div>
-                                    <p className="font-medium">{tx.description}</p>
-                                    <p className="text-xs text-gray-500">
-                                      {tx.tenant_name} • Unit {tx.unit_number}
-                                    </p>
-                                    <p className="text-xs text-gray-400">{formatDateTime(tx.created_at)}</p>
-                                  </div>
-                                  <div className="text-right">
-                                    <p className={isDebit ? 'text-red-600' : 'text-green-600'}>
-                                      {isDebit ? '+' : ''}{formatCurrency(tx.amount)}
-                                    </p>
-                                    <p className="text-xs text-gray-500">Bal: {formatCurrency(tx.runningBalance)}</p>
-                                  </div>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        )}
-
                         {/* Current Balance */}
-                        <div className="px-3 py-2 border-t bg-gray-100 flex justify-between text-sm">
+                        <div className="px-3 py-2 border-b bg-gray-100 flex justify-between text-sm">
                           <span className="font-bold">Current Total Balance</span>
                           <span className={`font-bold ${calculatePropertyBalance() > 0 ? 'text-red-600' : 'text-green-600'}`}>
                             {formatCurrency(calculatePropertyBalance())}
                           </span>
+                        </div>
+
+                        {/* Transactions Table */}
+                        {calculateLedgerWithBalance().length === 0 ? (
+                          <p className="text-gray-500 text-sm p-3">No transactions yet.</p>
+                        ) : (
+                          <div className="max-h-96 overflow-x-auto overflow-y-auto">
+                            <table className="w-full text-sm">
+                              <thead className="bg-gray-100 border-b sticky top-0">
+                                <tr>
+                                  <th className="text-left p-2 font-medium text-gray-600">Date</th>
+                                  <th className="text-left p-2 font-medium text-gray-600">Tenant</th>
+                                  <th className="text-left p-2 font-medium text-gray-600">Description</th>
+                                  <th className="text-right p-2 font-medium text-gray-600">Debit</th>
+                                  <th className="text-right p-2 font-medium text-gray-600">Credit</th>
+                                  <th className="text-right p-2 font-medium text-gray-600">Balance</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y bg-white">
+                                {calculateLedgerWithBalance().map((tx: any) => {
+                                  // Credits and payments have negative amounts (reduce balance)
+                                  const isCredit = tx.amount < 0
+                                  const amount = Math.abs(tx.amount)
+                                  return (
+                                    <tr key={tx.id} className="hover:bg-gray-50">
+                                      <td className="p-2 text-gray-600 whitespace-nowrap">
+                                        {formatDateTime(tx.created_at)}
+                                      </td>
+                                      <td className="p-2 text-gray-500 whitespace-nowrap">
+                                        {tx.tenant_name} • Unit {tx.unit_number}
+                                      </td>
+                                      <td className="p-2">{tx.description}</td>
+                                      <td className="p-2 text-right text-red-600 font-medium">
+                                        {!isCredit ? formatCurrency(amount) : '-'}
+                                      </td>
+                                      <td className="p-2 text-right text-green-600 font-medium">
+                                        {isCredit ? formatCurrency(amount) : '-'}
+                                      </td>
+                                      <td className={`p-2 text-right font-semibold ${
+                                        tx.runningBalance > 0 ? 'text-red-600' : 'text-green-600'
+                                      }`}>
+                                        {formatCurrency(tx.runningBalance)}
+                                      </td>
+                                    </tr>
+                                  )
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+
+                        {/* Opening Balance */}
+                        <div className="px-3 py-2 border-t bg-gray-100 flex justify-between text-sm">
+                          <span className="font-medium">Total Opening Balance</span>
+                          <span className="font-medium">{formatCurrency(ledgerData.totalOpeningBalance || 0)}</span>
                         </div>
                       </div>
                     ) : (

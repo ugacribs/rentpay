@@ -180,13 +180,19 @@ export default function TenantsPage() {
         <div className="grid gap-4">
           {tenants.map((tenant) => {
             const balance = tenant.lease?.current_balance || 0
+            const isTerminated = tenant.lease?.status === 'terminated'
             
             return (
-              <Card key={tenant.id}>
+              <Card key={tenant.id} className={isTerminated ? 'opacity-75' : ''}>
                 <CardHeader>
                   <div className="flex justify-between items-start">
                     <div>
-                      <CardTitle>{tenant.first_name} {tenant.last_name}</CardTitle>
+                      <CardTitle className="flex items-center gap-2">
+                        {tenant.first_name} {tenant.last_name}
+                        {isTerminated && (
+                          <span className="px-2 py-0.5 rounded text-xs bg-red-100 text-red-700">Terminated</span>
+                        )}
+                      </CardTitle>
                       <CardDescription>{tenant.email}</CardDescription>
                     </div>
                     <div className="text-right">
@@ -208,20 +214,22 @@ export default function TenantsPage() {
                       </p>
                     </div>
                     <div className="flex gap-2 flex-wrap justify-end">
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={() => {
-                          if (chargeTenant?.id === tenant.id) {
-                            setChargeTenant(null)
-                            setIsCredit(false)
-                          } else {
-                            setChargeTenant(tenant)
-                          }
-                        }}
-                      >
-                        {chargeTenant?.id === tenant.id ? 'Cancel' : 'Add Transaction'}
-                      </Button>
+                      {!isTerminated && (
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => {
+                            if (chargeTenant?.id === tenant.id) {
+                              setChargeTenant(null)
+                              setIsCredit(false)
+                            } else {
+                              setChargeTenant(tenant)
+                            }
+                          }}
+                        >
+                          {chargeTenant?.id === tenant.id ? 'Cancel' : 'Add Transaction'}
+                        </Button>
+                      )}
                       <Button 
                         variant="outline"
                         size="sm"
@@ -309,44 +317,60 @@ export default function TenantsPage() {
                         <p className="text-gray-500 text-sm">Loading ledger...</p>
                       ) : ledgerData ? (
                         <div className="bg-gray-50 rounded-lg overflow-hidden">
-                          {/* Opening Balance */}
+                          {/* Current Balance (moved to top) */}
                           <div className="px-3 py-2 border-b bg-gray-100 flex justify-between text-sm">
-                            <span className="font-medium">Opening Balance</span>
-                            <span className="font-medium">{formatCurrency(ledgerData.lease?.opening_balance || 0)}</span>
-                          </div>
-                          
-                          {/* Transactions */}
-                          {calculateLedgerWithBalance().length === 0 ? (
-                            <p className="text-gray-500 text-sm p-3">No transactions yet.</p>
-                          ) : (
-                            <div className="max-h-64 overflow-y-auto">
-                              {calculateLedgerWithBalance().map((tx: any) => {
-                                // Credits and payments have negative amounts (reduce balance)
-                                const isDebit = tx.amount > 0
-                                return (
-                                  <div key={tx.id} className="px-3 py-2 border-b last:border-0 flex justify-between items-center text-sm">
-                                    <div>
-                                      <p className="font-medium">{tx.description}</p>
-                                      <p className="text-xs text-gray-500">{formatDateTime(tx.created_at)}</p>
-                                    </div>
-                                    <div className="text-right">
-                                      <p className={isDebit ? 'text-red-600' : 'text-green-600'}>
-                                        {isDebit ? '+' : ''}{formatCurrency(tx.amount)}
-                                      </p>
-                                      <p className="text-xs text-gray-500">Bal: {formatCurrency(tx.runningBalance)}</p>
-                                    </div>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          )}
-                          
-                          {/* Current Balance */}
-                          <div className="px-3 py-2 border-t bg-gray-100 flex justify-between text-sm">
                             <span className="font-bold">Current Balance</span>
                             <span className={`font-bold ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
                               {formatCurrency(balance)}
                             </span>
+                          </div>
+                          
+                          {/* Transactions Table */}
+                          {calculateLedgerWithBalance().length === 0 ? (
+                            <p className="text-gray-500 text-sm p-3">No transactions yet.</p>
+                          ) : (
+                            <div className="overflow-x-auto">
+                              {/* Table Header */}
+                              <div className="grid grid-cols-5 gap-2 px-3 py-2 bg-gray-200 text-xs font-semibold text-gray-700 border-b">
+                                <div className="col-span-2">Description</div>
+                                <div className="text-right">Debit</div>
+                                <div className="text-right">Credit</div>
+                                <div className="text-right">Balance</div>
+                              </div>
+                              {/* Table Body */}
+                              <div className="max-h-64 overflow-y-auto">
+                                {calculateLedgerWithBalance().map((tx: any) => {
+                                  // Debits are positive amounts (increase balance)
+                                  // Credits are negative amounts (decrease balance)
+                                  const isDebit = tx.amount > 0
+                                  const debitAmount = isDebit ? tx.amount : null
+                                  const creditAmount = !isDebit ? Math.abs(tx.amount) : null
+                                  return (
+                                    <div key={tx.id} className="grid grid-cols-5 gap-2 px-3 py-2 border-b last:border-0 text-sm items-center">
+                                      <div className="col-span-2">
+                                        <p className="font-medium truncate">{tx.description}</p>
+                                        <p className="text-xs text-gray-500">{formatDateTime(tx.created_at)}</p>
+                                      </div>
+                                      <div className="text-right text-red-600">
+                                        {debitAmount !== null ? formatCurrency(debitAmount) : '-'}
+                                      </div>
+                                      <div className="text-right text-green-600">
+                                        {creditAmount !== null ? formatCurrency(creditAmount) : '-'}
+                                      </div>
+                                      <div className={`text-right font-medium ${tx.runningBalance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                        {formatCurrency(tx.runningBalance)}
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Opening Balance (moved to bottom) */}
+                          <div className="px-3 py-2 border-t bg-gray-100 flex justify-between text-sm">
+                            <span className="font-medium">Opening Balance</span>
+                            <span className="font-medium">{formatCurrency(ledgerData.lease?.opening_balance || 0)}</span>
                           </div>
                         </div>
                       ) : (
