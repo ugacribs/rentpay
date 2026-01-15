@@ -11,6 +11,8 @@ export default function LeasesPage() {
   const [selectedLease, setSelectedLease] = useState<any>(null)
   const [terminatingLeaseId, setTerminatingLeaseId] = useState<string | null>(null)
   const [showTerminateConfirm, setShowTerminateConfirm] = useState<string | null>(null)
+  const [deletingLeaseId, setDeletingLeaseId] = useState<string | null>(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
 
   useEffect(() => {
     fetchLeases()
@@ -51,6 +53,30 @@ export default function LeasesPage() {
       alert('Failed to terminate lease')
     } finally {
       setTerminatingLeaseId(null)
+    }
+  }
+
+  const handleDeleteLease = async (leaseId: string) => {
+    setDeletingLeaseId(leaseId)
+    try {
+      const response = await fetch(`/api/landlord/leases/${leaseId}/delete`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        // Refresh the leases list
+        await fetchLeases()
+        setShowDeleteConfirm(null)
+        setSelectedLease(null)
+      } else {
+        const data = await response.json()
+        alert(data.error || 'Failed to delete lease')
+      }
+    } catch (error) {
+      console.error('Failed to delete lease:', error)
+      alert('Failed to delete lease')
+    } finally {
+      setDeletingLeaseId(null)
     }
   }
 
@@ -282,6 +308,63 @@ export default function LeasesPage() {
                                   onClick={() => setShowTerminateConfirm(lease.id)}
                                 >
                                   Terminate
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Delete Lease Section - Only show for terminated leases */}
+                      {lease.status === 'terminated' && (
+                        <div className="space-y-2 md:col-span-2">
+                          <h4 className="font-semibold text-sm text-gray-700">Lease Actions</h4>
+                          <div className="bg-gray-100 p-3 rounded-lg border border-gray-300">
+                            {showDeleteConfirm === lease.id ? (
+                              <div className="space-y-3">
+                                <p className="text-sm text-gray-800 font-medium">
+                                  Are you sure you want to permanently delete this lease?
+                                </p>
+                                <p className="text-xs text-gray-700">
+                                  This will permanently remove:
+                                </p>
+                                <ul className="text-xs text-gray-700 list-disc list-inside space-y-1">
+                                  <li>The lease record</li>
+                                  <li>All transaction history</li>
+                                  <li>Signature records</li>
+                                  <li>This action cannot be undone</li>
+                                </ul>
+                                <div className="flex gap-2 pt-2">
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => handleDeleteLease(lease.id)}
+                                    disabled={deletingLeaseId === lease.id}
+                                  >
+                                    {deletingLeaseId === lease.id ? 'Deleting...' : 'Yes, Delete Permanently'}
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setShowDeleteConfirm(null)}
+                                    disabled={deletingLeaseId === lease.id}
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="text-sm text-gray-800 font-medium">Delete Lease</p>
+                                  <p className="text-xs text-gray-600">Permanently remove this terminated lease and all its records</p>
+                                </div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setShowDeleteConfirm(lease.id)}
+                                >
+                                  Delete
                                 </Button>
                               </div>
                             )}
