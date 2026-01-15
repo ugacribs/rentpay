@@ -46,6 +46,13 @@ function LoginContent() {
         },
       })
       if (authError) {
+        console.error('Magic link error:', authError)
+        // Provide more user-friendly error messages
+        if (authError.message.includes('rate limit')) {
+          throw new Error('Too many login attempts. Please wait a few minutes and try again.')
+        } else if (authError.message.includes('Email sending')) {
+          throw new Error('Unable to send email. Please check your email address and try again.')
+        }
         throw new Error(authError.message)
       }
       setEmailSent(true)
