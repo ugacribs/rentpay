@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -19,13 +19,7 @@ export default function EditPropertyPage() {
     address: '',
   })
 
-  useEffect(() => {
-    if (params.id) {
-      fetchProperty()
-    }
-  }, [params.id])
-
-  const fetchProperty = async () => {
+  const fetchProperty = useCallback(async () => {
     try {
       const response = await fetch(`/api/landlord/properties/${params.id}`)
       if (response.ok) {
@@ -42,7 +36,13 @@ export default function EditPropertyPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [params.id])
+
+  useEffect(() => {
+    if (params.id) {
+      fetchProperty()
+    }
+  }, [params.id, fetchProperty])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

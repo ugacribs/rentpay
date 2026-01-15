@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -20,11 +20,7 @@ export default function TenantOnboardingPage() {
     lastName: '',
   })
 
-  useEffect(() => {
-    checkOnboardingStatus()
-  }, [])
-
-  const checkOnboardingStatus = async () => {
+  const checkOnboardingStatus = useCallback(async () => {
     try {
       const response = await fetch('/api/tenant/onboarding-status')
       const data = await response.json()
@@ -68,7 +64,11 @@ export default function TenantOnboardingPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [router])
+
+  useEffect(() => {
+    checkOnboardingStatus()
+  }, [checkOnboardingStatus])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

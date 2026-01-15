@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -134,7 +134,7 @@ export default function TenantDashboard() {
 
   // Get the late fee target date for countdown
   // Only returns a date if rent is charged and late fee hasn't been charged yet
-  const getLateFeeTargetDate = () => {
+  const getLateFeeTargetDate = useCallback(() => {
     if (!lease || balance <= 0) return null
 
     const rentDueDate = lease.rent_due_date || 1
@@ -195,44 +195,9 @@ export default function TenantDashboard() {
     }
 
     return new Date(lateFeeYear, lateFeeMonth, lateFeeDay, 0, 1, 0)
-  }
+  }, [lease, balance, transactions])
 
-  useEffect(() => {
-    fetchDashboardData()
-  }, [])
-
-  // Countdown timer effect
-  useEffect(() => {
-    const targetDate = getLateFeeTargetDate()
-    if (!targetDate) {
-      setCountdown(null)
-      return
-    }
-
-    const updateCountdown = () => {
-      const now = new Date()
-      const diff = targetDate.getTime() - now.getTime()
-
-      if (diff <= 0) {
-        setCountdown(null)
-        return
-      }
-
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
-      const seconds = Math.floor((diff % (1000 * 60)) / 1000)
-
-      setCountdown({ days, hours, minutes, seconds })
-    }
-
-    updateCountdown()
-    const interval = setInterval(updateCountdown, 1000)
-
-    return () => clearInterval(interval)
-  }, [lease, balance])
-
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       const [leaseRes, transactionsRes, profileRes] = await Promise.all([
         fetch('/api/tenant/lease'),
@@ -301,7 +266,42 @@ export default function TenantDashboard() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    fetchDashboardData()
+  }, [fetchDashboardData])
+
+  // Countdown timer effect
+  useEffect(() => {
+    const targetDate = getLateFeeTargetDate()
+    if (!targetDate) {
+      setCountdown(null)
+      return
+    }
+
+    const updateCountdown = () => {
+      const now = new Date()
+      const diff = targetDate.getTime() - now.getTime()
+
+      if (diff <= 0) {
+        setCountdown(null)
+        return
+      }
+
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000)
+
+      setCountdown({ days, hours, minutes, seconds })
+    }
+
+    updateCountdown()
+    const interval = setInterval(updateCountdown, 1000)
+
+    return () => clearInterval(interval)
+  }, [getLateFeeTargetDate])
 
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault()

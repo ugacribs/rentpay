@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useEffect, useState, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -18,18 +18,7 @@ function SignupContent() {
   const [emailSent, setEmailSent] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
-  useEffect(() => {
-    // Check if user is already authenticated from invite link; redirect to onboarding if so
-    checkAuthStatus()
-
-    // Surface auth failure errors
-    const urlError = searchParams.get('error')
-    if (urlError === 'auth_failed') {
-      setError('Authentication failed. Please try again.')
-    }
-  }, [searchParams])
-
-  const checkAuthStatus = async () => {
+  const checkAuthStatus = useCallback(async () => {
     try {
       const response = await fetch('/api/tenant/onboarding-status')
       if (response.ok) {
@@ -40,7 +29,18 @@ function SignupContent() {
       // Not authenticated; fall through to show signup form
     }
     setLoading(false)
-  }
+  }, [router])
+
+  useEffect(() => {
+    // Check if user is already authenticated from invite link; redirect to onboarding if so
+    checkAuthStatus()
+
+    // Surface auth failure errors
+    const urlError = searchParams.get('error')
+    if (urlError === 'auth_failed') {
+      setError('Authentication failed. Please try again.')
+    }
+  }, [searchParams, checkAuthStatus])
 
   const sendMagicLink = async () => {
     if (!email) {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -13,13 +13,7 @@ export default function PropertyDetailsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    if (params.id) {
-      fetchProperty()
-    }
-  }, [params.id])
-
-  const fetchProperty = async () => {
+  const fetchProperty = useCallback(async () => {
     try {
       const response = await fetch(`/api/landlord/properties/${params.id}`)
       if (response.ok) {
@@ -33,7 +27,13 @@ export default function PropertyDetailsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [params.id])
+
+  useEffect(() => {
+    if (params.id) {
+      fetchProperty()
+    }
+  }, [params.id, fetchProperty])
 
   const getStatusBadge = (status: string) => {
     const styles: Record<string, string> = {
