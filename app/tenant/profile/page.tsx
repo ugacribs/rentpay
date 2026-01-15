@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { formatCurrency } from '@/lib/utils'
 import { createBrowserClient } from '@supabase/ssr'
 
@@ -12,6 +14,11 @@ export default function TenantProfile() {
   const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState<any>(null)
   const [lease, setLease] = useState<any>(null)
+  const [showEmailModal, setShowEmailModal] = useState(false)
+  const [newEmail, setNewEmail] = useState('')
+  const [emailError, setEmailError] = useState('')
+  const [emailSuccess, setEmailSuccess] = useState('')
+  const [savingEmail, setSavingEmail] = useState(false)
 
   useEffect(() => {
     fetchProfileData()
@@ -55,6 +62,60 @@ export default function TenantProfile() {
     if (day === 2 || day === 22) return 'nd'
     if (day === 3 || day === 23) return 'rd'
     return 'th'
+  }
+
+  const handleEmailChange = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setEmailError('')
+    setEmailSuccess('')
+
+    if (!newEmail) {
+      setEmailError('Please enter an email address')
+      return
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(newEmail)) {
+      setEmailError('Please enter a valid email address')
+      return
+    }
+
+    if (newEmail === profile?.email) {
+      setEmailError('This is already your current email')
+      return
+    }
+
+    setSavingEmail(true)
+
+    try {
+      const response = await fetch('/api/tenant/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: newEmail }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update email')
+      }
+
+      setEmailSuccess(data.message)
+      // Update local state to show new email
+      setProfile({ ...profile, email: newEmail })
+
+      // Close modal after 3 seconds
+      setTimeout(() => {
+        setShowEmailModal(false)
+        setEmailSuccess('')
+        setNewEmail('')
+      }, 3000)
+    } catch (err: any) {
+      setEmailError(err.message)
+    } finally {
+      setSavingEmail(false)
+    }
   }
 
   if (loading) {
@@ -121,7 +182,23 @@ export default function TenantProfile() {
             </div>
             <div className="flex justify-between items-center py-2 border-b">
               <span className="text-gray-500 text-sm">Email</span>
-              <span className="font-medium text-sm">{profile?.email}</span>
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-sm">{profile?.email}</span>
+                <button
+                  onClick={() => {
+                    setNewEmail(profile?.email || '')
+                    setEmailError('')
+                    setEmailSuccess('')
+                    setShowEmailModal(true)
+                  }}
+                  className="text-blue-600 hover:text-blue-800 p-1"
+                  title="Change email"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                </button>
+              </div>
             </div>
             <div className="flex justify-between items-center py-2">
               <span className="text-gray-500 text-sm">Status</span>
@@ -224,6 +301,103 @@ export default function TenantProfile() {
         {/* Bottom padding */}
         <div className="h-4"></div>
       </div>
+
+      {/* Email Change Modal */}
+      {showEmailModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => !savingEmail && setShowEmailModal(false)}
+          />
+
+          {/* Modal Content */}
+          <div className="relative w-full max-w-md mx-4 bg-white rounded-2xl shadow-xl">
+            {/* Modal Header */}
+            <div className="border-b p-4 flex justify-between items-center">
+              <div>
+                <h2 className="text-lg font-semibold">Change Email Address</h2>
+                <p className="text-sm text-gray-500">Update your account email</p>
+              </div>
+              <button
+                onClick={() => !savingEmail && setShowEmailModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-full"
+                disabled={savingEmail}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4">
+              {emailError && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-800">{emailError}</p>
+                </div>
+              )}
+
+              {emailSuccess && (
+                <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="text-sm text-green-800">{emailSuccess}</p>
+                </div>
+              )}
+
+              <form onSubmit={handleEmailChange} className="space-y-4">
+                <div>
+                  <Label htmlFor="currentEmail" className="text-sm text-gray-500">Current Email</Label>
+                  <Input
+                    id="currentEmail"
+                    type="email"
+                    value={profile?.email || ''}
+                    disabled
+                    className="mt-1 bg-gray-50"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="newEmail" className="text-sm">New Email Address</Label>
+                  <Input
+                    id="newEmail"
+                    type="email"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    placeholder="Enter new email address"
+                    className="mt-1"
+                    disabled={savingEmail}
+                  />
+                </div>
+
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-xs text-blue-800">
+                    <strong>Note:</strong> After changing your email, you will receive a confirmation link at your new email address. You must click this link to complete the change.
+                  </p>
+                </div>
+
+                <div className="flex gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowEmailModal(false)}
+                    disabled={savingEmail}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={savingEmail}
+                    className="flex-1"
+                  >
+                    {savingEmail ? 'Updating...' : 'Update Email'}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
