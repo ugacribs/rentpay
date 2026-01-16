@@ -19,7 +19,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (user.email !== email) {
+    // Normalize emails to lowercase for comparison
+    const normalizedEmail = email.toLowerCase().trim()
+    const userEmailNormalized = (user.email || '').toLowerCase().trim()
+
+    if (userEmailNormalized !== normalizedEmail) {
       return NextResponse.json(
         { error: 'Email mismatch' },
         { status: 400 }
@@ -28,12 +32,12 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient()
 
-    // Verify access code
+    // Verify access code - use case-insensitive email matching
     const { data: accessCodeData, error: codeError } = await supabase
       .from('access_codes')
       .select('*, lease:leases(*)')
       .eq('code', accessCode)
-      .eq('email', email)
+      .ilike('email', normalizedEmail)
       .eq('used', false)
       .single()
 
@@ -52,14 +56,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create tenant record
+    // Create tenant record with normalized email
     const { error: tenantError } = await supabase
       .from('tenants')
       .insert({
         id: user.id,
         first_name: firstName,
         last_name: lastName,
-        email: email,
+        email: normalizedEmail,
         status: 'active',
       })
 

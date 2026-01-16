@@ -245,7 +245,8 @@ export async function checkPaymentStatusAirtel(transactionId: string): Promise<{
 
 /**
  * Validate phone number format for Airtel Uganda
- * Should be 10 digits starting with 70 or 75
+ * Accepts formats: 0701234567, 256701234567, or 701234567
+ * After normalization, should be 9 digits starting with 70 or 75
  */
 export function validateAirtelPhoneNumber(phoneNumber: string): boolean {
   // Remove any spaces or special characters

@@ -17,11 +17,17 @@ import { createServiceClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {
-    // TODO: Add webhook signature verification for production
-    // const signature = request.headers.get('x-mtn-signature')
-    // if (!verifyMTNSignature(signature, payload)) {
-    //   return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
-    // }
+    // Webhook signature verification for production
+    // MTN uses a subscription key verification - verify the request has valid headers
+    const subscriptionKey = request.headers.get('Ocp-Apim-Subscription-Key')
+
+    // In production, verify the subscription key matches our expected key
+    if (process.env.NODE_ENV === 'production' && process.env.MTN_WEBHOOK_SECRET) {
+      if (subscriptionKey !== process.env.MTN_WEBHOOK_SECRET) {
+        console.error('Invalid MTN webhook signature')
+        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+      }
+    }
 
     // Parse webhook payload
     const payload = await request.json()

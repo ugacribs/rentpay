@@ -17,11 +17,18 @@ import { createServiceClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {
-    // TODO: Add webhook signature verification for production
-    // const signature = request.headers.get('x-airtel-signature')
-    // if (!verifyAirtelSignature(signature, payload)) {
-    //   return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
-    // }
+    // Webhook signature verification for production
+    // Airtel uses authorization header verification
+    const authHeader = request.headers.get('Authorization')
+
+    // In production, verify the authorization header contains expected secret
+    if (process.env.NODE_ENV === 'production' && process.env.AIRTEL_WEBHOOK_SECRET) {
+      const expectedAuth = `Bearer ${process.env.AIRTEL_WEBHOOK_SECRET}`
+      if (authHeader !== expectedAuth) {
+        console.error('Invalid Airtel webhook signature')
+        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+      }
+    }
 
     // Parse webhook payload
     const payload = await request.json()
@@ -43,7 +50,6 @@ export async function POST(request: NextRequest) {
 
     const transactionId = transaction.id
     const status = transaction.status // TS = Success, TF = Failed, etc.
-    const amount = transaction.amount
     const airtelMoneyId = transaction.airtel_money_id
 
     // Use service client - webhooks have no user session
