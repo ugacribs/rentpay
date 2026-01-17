@@ -103,6 +103,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Re-fetch the lease to get the latest rent_due_date (may have been updated during onboarding)
+    const { data: updatedLease } = await supabase
+      .from('leases')
+      .select('rent_due_date')
+      .eq('id', lease.id)
+      .single()
+
     // Calculate and charge prorated rent
     const signupDate = new Date()
     const { data: proratedAmount } = await supabase
@@ -114,7 +121,7 @@ export async function POST(request: NextRequest) {
     if (proratedAmount && proratedAmount > 0) {
       // Calculate the day before rent due date for description
       // Business logic: Prorated rent covers from signup date to the day BEFORE the first rent due date
-      const rentDueDate = lease.rent_due_date || 1
+      const rentDueDate = updatedLease?.rent_due_date || lease.rent_due_date || 1
       let firstDueDate: Date
 
       // If signup day >= due date, first due date is in next month
