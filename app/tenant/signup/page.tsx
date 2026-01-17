@@ -50,20 +50,19 @@ function SignupContent() {
     setSubmitting(true)
     setError('')
     try {
-      const supabase = createClient()
-      // Use current origin for local dev, env var for production
-      const siteUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
-        ? window.location.origin 
-        : (process.env.NEXT_PUBLIC_APP_URL || 'https://darkviolet-seahorse-693324.hostingersite.com')
-      const { error: authError } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: `${siteUrl}/tenant/auth/callback`,
-        },
+      // Call API to verify lease exists and send magic link
+      const response = await fetch('/api/tenant/request-magic-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.toLowerCase().trim() }),
       })
-      if (authError) {
-        throw new Error(authError.message)
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send magic link')
       }
+
       setEmailSent(true)
     } catch (err: any) {
       setError(err.message)

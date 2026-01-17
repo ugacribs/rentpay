@@ -125,22 +125,22 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Send invite email to tenant using Supabase Auth
-    // When tenant clicks the link, they'll be redirected to onboarding after auth
+    // Send magic link to tenant using Supabase Auth
+    // signInWithOtp works for both new and existing users
     const redirectUrl = `${process.env.NEXT_PUBLIC_APP_URL}/tenant/auth/callback?next=/tenant/onboarding`
 
-    const { error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
-      tenantEmail,
-      {
-        redirectTo: redirectUrl,
+    const { error: inviteError } = await supabase.auth.signInWithOtp({
+      email: tenantEmail,
+      options: {
+        emailRedirectTo: redirectUrl,
         data: {
           access_code: accessCode,
           property_name: unit.property?.name,
           unit_number: unit.unit_number,
           role: 'tenant',
         },
-      }
-    )
+      },
+    })
 
     // Log but don't fail if email fails - landlord can still share code manually
     if (inviteError) {
