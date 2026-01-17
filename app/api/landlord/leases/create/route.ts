@@ -23,8 +23,8 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { unitId, tenantEmail: rawTenantEmail, monthlyRent, lateFeeAmount, openingBalance } = body
-    
+    const { unitId, tenantEmail: rawTenantEmail, monthlyRent, lateFeeAmount, openingBalance, landlordSignature } = body
+
     // Normalize email to lowercase for consistent matching
     const tenantEmail = rawTenantEmail?.toLowerCase().trim()
 
@@ -32,6 +32,13 @@ export async function POST(request: NextRequest) {
     if (!unitId || !tenantEmail || !monthlyRent || !lateFeeAmount) {
       return NextResponse.json(
         { error: 'All fields are required' },
+        { status: 400 }
+      )
+    }
+
+    if (!landlordSignature) {
+      return NextResponse.json(
+        { error: 'Landlord signature is required' },
         { status: 400 }
       )
     }
@@ -87,6 +94,8 @@ export async function POST(request: NextRequest) {
         opening_balance: openingBalance || 0,
         rent_due_date: 1, // Default to 1st, tenant will update during onboarding
         status: 'pending',
+        landlord_signature_data: landlordSignature,
+        landlord_signed_at: new Date().toISOString(),
       })
       .select()
       .single()

@@ -437,7 +437,8 @@ export default function TenantDashboard() {
     const endOfNextMonth = new Date(txDate.getFullYear(), txDate.getMonth() + 2, 0)
     
     if (txType === 'prorated_rent') {
-      return `Prorated rent for period ${formatDate(txDate)} to ${formatDate(endOfMonth)}`
+      // Use the description from database as it has the correct period dates
+      return transaction.description || `Prorated rent for period ${formatDate(txDate)} to ${formatDate(endOfMonth)}`
     } else if (txType === 'rent') {
       return `Monthly rent for ${startOfNextMonth.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })} (${formatDate(startOfNextMonth)} to ${formatDate(endOfNextMonth)})`
     } else if (txType === 'late_fee') {

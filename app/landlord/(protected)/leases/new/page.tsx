@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import SignatureCanvas from 'react-signature-canvas'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,7 +14,8 @@ export default function NewLeasePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const preselectedUnitId = searchParams.get('unitId')
-  
+  const sigPad = useRef<SignatureCanvas>(null)
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [units, setUnits] = useState<any[]>([])
@@ -54,12 +56,24 @@ export default function NewLeasePage() {
     }
   }
 
+  const clearSignature = () => {
+    sigPad.current?.clear()
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (sigPad.current?.isEmpty()) {
+      setError('Please provide your signature to create the lease')
+      return
+    }
+
     setLoading(true)
     setError('')
 
     try {
+      const signatureData = sigPad.current?.toDataURL()
+
       const response = await fetch('/api/landlord/leases/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -68,6 +82,7 @@ export default function NewLeasePage() {
           monthlyRent: parseFloat(formData.monthlyRent),
           lateFeeAmount: parseFloat(formData.lateFeeAmount),
           openingBalance: parseFloat(formData.openingBalance),
+          landlordSignature: signatureData,
         }),
       })
 
@@ -215,6 +230,31 @@ export default function NewLeasePage() {
                       Optional: Any existing balance the tenant owes
                     </p>
                   </FormField>
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <h3 className="font-semibold mb-2">Landlord Signature</h3>
+                <p className="text-sm text-gray-500 mb-4">
+                  Sign below to authorize this lease agreement. Your signature will appear on the tenant&apos;s copy.
+                </p>
+                <div className="border-2 border-gray-300 rounded-md bg-white">
+                  <SignatureCanvas
+                    ref={sigPad}
+                    canvasProps={{
+                      className: 'w-full h-32 cursor-crosshair',
+                    }}
+                  />
+                </div>
+                <div className="flex justify-end mt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={clearSignature}
+                  >
+                    Clear Signature
+                  </Button>
                 </div>
               </div>
 

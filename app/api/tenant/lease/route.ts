@@ -68,7 +68,24 @@ export async function GET() {
       return NextResponse.json({ error: 'Lease not found' }, { status: 404 })
     }
 
-    return NextResponse.json(lease)
+    // Fetch tenant details if available
+    let tenantInfo = null
+    if (lease.tenant_id) {
+      const { data: tenantData } = await supabase
+        .from('tenants')
+        .select('first_name, last_name')
+        .eq('id', lease.tenant_id)
+        .single()
+      tenantInfo = tenantData
+    }
+
+    return NextResponse.json({
+      ...lease,
+      tenant_first_name: tenantInfo?.first_name || '',
+      tenant_last_name: tenantInfo?.last_name || '',
+      landlord_signature_data: lease.landlord_signature_data || null,
+      landlord_signed_at: lease.landlord_signed_at || null,
+    })
   } catch (error) {
     console.error('Get lease error:', error)
     return NextResponse.json(

@@ -65,14 +65,16 @@ export async function POST(request: NextRequest) {
                request.headers.get('x-real-ip') ||
                'unknown'
 
-    // Save signature (upsert to handle re-signing attempts)
+    // Save tenant signature (upsert to handle re-signing attempts)
+    const agreementDate = new Date().toISOString().split('T')[0]
     const { error: signatureError } = await supabase
       .from('lease_signatures')
       .upsert({
         lease_id: lease.id,
         signature_data,
         ip_address: ip,
-        signed_at: new Date().toISOString(),
+        tenant_signed_at: new Date().toISOString(),
+        agreement_date: agreementDate,
       }, {
         onConflict: 'lease_id'
       })
@@ -104,11 +106,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Re-fetch the lease to get the latest rent_due_date (may have been updated during onboarding)
-    const { data: updatedLease } = await supabase
+    const { data: updatedLease, error: refetchError } = await supabase
       .from('leases')
       .select('rent_due_date')
       .eq('id', lease.id)
       .single()
+
+    console.log('Sign lease - rent_due_date debug:', {
+      leaseId: lease.id,
+      originalRentDueDate: lease.rent_due_date,
+      updatedRentDueDate: updatedLease?.rent_due_date,
+      refetchError: refetchError?.message,
+    })
 
     // Calculate and charge prorated rent
     const signupDate = new Date()
