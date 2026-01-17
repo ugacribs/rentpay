@@ -255,6 +255,15 @@ export default function LeasesPage() {
                               <p className="text-sm"><span className="text-gray-500">Access Code:</span> <code className="bg-gray-200 px-2 py-0.5 rounded">{lease.access_code}</code></p>
                             )}
                           </div>
+                          {lease.signed_at && (
+                            <div className="mt-3 pt-3 border-t border-gray-200">
+                              <Link href={`/landlord/lease/${lease.id}/view`}>
+                                <Button variant="outline" size="sm">
+                                  View Signed Agreement
+                                </Button>
+                              </Link>
+                            </div>
+                          )}
                         </div>
                       </div>
 

@@ -67,6 +67,12 @@ export async function POST(request: NextRequest) {
       .update({ rent_due_date })
       .eq('id', lease.id)
 
+    console.log('Set due date - update result:', {
+      leaseId: lease.id,
+      newRentDueDate: rent_due_date,
+      updateError: updateError?.message,
+    })
+
     if (updateError) {
       return NextResponse.json(
         { error: 'Failed to update due date' },

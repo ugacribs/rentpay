@@ -295,6 +295,14 @@ export default function TenantProfile() {
                 {lease?.status || 'Pending'}
               </span>
             </div>
+            <div className="pt-3 mt-3 border-t">
+              <Button
+                onClick={() => router.push('/tenant/lease')}
+                className="w-full bg-blue-600 hover:bg-blue-700"
+              >
+                View Full Agreement
+              </Button>
+            </div>
           </CardContent>
         </Card>
 

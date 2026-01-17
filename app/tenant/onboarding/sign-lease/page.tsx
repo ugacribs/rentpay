@@ -160,7 +160,7 @@ export default function SignLeasePage() {
                   <h2 className="text-lg font-bold mb-2">2. TERM</h2>
                   <p className="text-sm pl-4">
                     This Agreement shall be a month-to-month tenancy, commencing on the date of signing.
-                    Either party may terminate this Agreement by providing written notice of at least ONE month.
+                    Either party may terminate this Agreement by providing written notice of at least <strong>ONE</strong> month.
                   </p>
                 </div>
 
@@ -206,7 +206,11 @@ export default function SignLeasePage() {
                       <span className="font-bold">{formatCurrency(lateFee)}</span> per month.
                     </p>
                     <p>
-                      <span className="font-semibold">4.3 Proportional Late Fees:</span> Late fees shall be calculated
+                      <span className="font-semibold">4.3 Payment of Late Fees:</span> Any late fees charged form part of
+                      the outstanding rent and are due for <strong>IMMEDIATE</strong> payment, together with the outstanding rent.
+                    </p>
+                    <p>
+                      <span className="font-semibold">4.4 Proportional Late Fees:</span> Late fees shall be calculated
                       proportionally based on the outstanding balance relative to the monthly rent. For example,
                       if the outstanding balance equals half the monthly rent, half the late fee applies; if the
                       balance equals double the monthly rent, double the late fee applies.
@@ -218,7 +222,7 @@ export default function SignLeasePage() {
                 <div>
                   <h2 className="text-lg font-bold mb-2">5. PAYMENT METHOD</h2>
                   <p className="text-sm pl-4">
-                    Rent payments shall be made STRICTLY through the RentPay platform using mobile money via MTN or AIRTEL.
+                    Rent payments shall be made <strong>STRICTLY</strong> through the RentPay platform using mobile money via <strong>MTN</strong> or <strong>AIRTEL</strong>.
                     Any money paid by any other means will not be recognised as rent and the Tenant is solely responsible
                     for the loss of such money. The landlord will not accept liability for any money paid by cash or any
                     other unauthorised means.
@@ -239,10 +243,10 @@ export default function SignLeasePage() {
                     </p>
                     <p>
                       <span className="font-semibold">6.3</span> The Tenant shall maintain a rubbish bin to collect
-                      their rubbish and subsequently dispose it of with K.C.C.A.
+                      their rubbish and subsequently dispose it of with <strong>K.C.C.A.</strong>
                     </p>
                     <p>
-                      <span className="font-semibold">6.4</span> The Tenant shall have a MAXIMUM of TWO adults in the
+                      <span className="font-semibold">6.4</span> The Tenant shall have a <strong>MAXIMUM</strong> of <strong>TWO</strong> adults in the
                       house as residents. The Tenant being one of them.
                     </p>
                     <p>
@@ -261,35 +265,9 @@ export default function SignLeasePage() {
                   </p>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Landlord Signature */}
-                    {leaseData?.landlord_signature_data && (
-                      <div>
-                        <h2 className="text-lg font-bold mb-3">LANDLORD</h2>
-                        <div className="border-2 border-gray-400 rounded-md bg-white p-2 h-28 flex items-center justify-center">
-                          <img
-                            src={leaseData.landlord_signature_data}
-                            alt="Landlord Signature"
-                            className="h-20 max-w-full object-contain"
-                          />
-                        </div>
-                        <p className="text-center mt-2 text-sm font-semibold text-gray-800">
-                          For and on behalf of UgaCribs Company Limited
-                        </p>
-                        {leaseData.landlord_signed_at && (
-                          <p className="text-center text-xs text-gray-600 mt-1">
-                            {new Date(leaseData.landlord_signed_at).toLocaleDateString('en-US', {
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric'
-                            })}
-                          </p>
-                        )}
-                      </div>
-                    )}
-
                     {/* Tenant Signature */}
                     <div>
-                      <h2 className="text-lg font-bold mb-3">TENANT</h2>
+                      <h2 className="text-lg font-bold mb-3">TENANT SIGNATURE</h2>
                       <div className="border-2 border-gray-400 rounded-md bg-white h-28">
                         <SignatureCanvas
                           ref={sigPad}
@@ -309,8 +287,34 @@ export default function SignLeasePage() {
                           Clear
                         </Button>
                       </div>
-                      <p className="text-xs text-gray-600 mt-1">{formattedDate}</p>
+                      <p className="text-xs text-gray-600 mt-1">Signed on: {formattedDate}</p>
                     </div>
+
+                    {/* Landlord Signature */}
+                    {leaseData?.landlord_signature_data && (
+                      <div>
+                        <h2 className="text-lg font-bold mb-3">LANDLORD SIGNATURE</h2>
+                        <div className="border-2 border-gray-400 rounded-md bg-white p-2 h-28 flex items-center justify-center">
+                          <img
+                            src={leaseData.landlord_signature_data}
+                            alt="Landlord Signature"
+                            className="h-20 max-w-full object-contain"
+                          />
+                        </div>
+                        <p className="text-center mt-2 text-sm font-semibold text-gray-800">
+                          For and on behalf of UgaCribs Company Limited
+                        </p>
+                        {leaseData.landlord_signed_at && (
+                          <p className="text-center text-xs text-gray-600 mt-1">
+                            Signed on: {new Date(leaseData.landlord_signed_at).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 

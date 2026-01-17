@@ -40,7 +40,11 @@
       "Bash(\"C:/Program Files/GitHub CLI/gh.exe\" auth status)",
       "Bash(\"C:/Program Files/GitHub CLI/gh.exe\" repo create rentpay --private --source=. --remote=origin --push)",
       "Bash(git commit:*)",
-      "Bash(supabase migration repair:*)"
+      "Bash(supabase migration repair:*)",
+      "Bash(dir \"c:\\\\Users\\\\admin\\\\Desktop\\\\PROGRAMMING\\\\rentpay\")",
+      "Bash(dir \"c:\\\\Users\\\\admin\\\\Desktop\\\\PROGRAMMING\\\\rentpay\\\\components\")",
+      "Bash(wc -l:*)",
+      "Bash(ls:*)"
     ]
   }
 }

@@ -66,15 +66,12 @@ export async function POST(request: NextRequest) {
                'unknown'
 
     // Save tenant signature (upsert to handle re-signing attempts)
-    const agreementDate = new Date().toISOString().split('T')[0]
     const { error: signatureError } = await supabase
       .from('lease_signatures')
       .upsert({
         lease_id: lease.id,
         signature_data,
         ip_address: ip,
-        tenant_signed_at: new Date().toISOString(),
-        agreement_date: agreementDate,
       }, {
         onConflict: 'lease_id'
       })
