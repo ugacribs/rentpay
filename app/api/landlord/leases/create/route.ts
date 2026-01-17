@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
 
     // Send invite email to tenant using Supabase Auth
     // When tenant clicks the link, they'll be redirected to onboarding after auth
-    const redirectUrl = `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback?next=/tenant/onboarding`
+    const redirectUrl = `${process.env.NEXT_PUBLIC_APP_URL}/tenant/auth/callback?next=/tenant/onboarding`
 
     const { error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
       tenantEmail,

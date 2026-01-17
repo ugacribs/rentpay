@@ -75,8 +75,10 @@ USING (
 3. Go to Authentication > URL Configuration
 4. Add your production URL: `https://yourdomain.com`
 5. Add redirect URLs:
-   - `https://yourdomain.com/auth/callback`
-   - `https://yourdomain.com/**`
+   - `https://yourdomain.com/tenant/auth/callback`
+   - `https://yourdomain.com/landlord/auth/callback`
+   - `http://localhost:3001/tenant/auth/callback` (for development)
+   - `http://localhost:3001/landlord/auth/callback` (for development)
 
 ## 2. Deploy Edge Functions
 
@@ -216,9 +218,8 @@ NEXT_PUBLIC_SUPABASE_URL=https://yourproject.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key_here
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
 
-# App URLs
+# App URL
 NEXT_PUBLIC_APP_URL=https://yourdomain.com
-NEXT_PUBLIC_LANDLORD_URL=https://yourdomain.com
 
 # MTN Mobile Money (Production)
 MTN_API_URL=https://proxy.momoapi.mtn.com

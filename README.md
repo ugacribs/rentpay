@@ -232,8 +232,8 @@ npm run dev
 ```
 
 Visit:
-- Tenant portal: `http://localhost:3000`
-- Landlord portal: `http://landlord.localhost:3000` (configure hosts file)
+- Tenant portal: `http://localhost:3001`
+- Landlord portal: `http://localhost:3001/landlord`
 
 ## Payment Gateway Setup
 
@@ -248,16 +248,15 @@ Visit:
 2. Get client credentials
 3. Configure dedicated IP whitelist
 
-## Subdomain Configuration
+## URL Configuration
 
-For local development, add to your hosts file:
-```
-127.0.0.1 landlord.localhost
-```
+The app uses path-based routing (not subdomains):
+- Tenant portal: `yourdomain.com/tenant`
+- Landlord portal: `yourdomain.com/landlord`
 
-For production on Hostinger:
-- Main domain (tenant): `yourdomain.com` → App
-- Subdomain (landlord): `landlord.yourdomain.com` → App (with routing)
+For local development:
+- Tenant portal: `http://localhost:3001/tenant`
+- Landlord portal: `http://localhost:3001/landlord`
 
 ## Project Structure
 
